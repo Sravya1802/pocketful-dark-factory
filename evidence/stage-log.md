@@ -19,3 +19,8 @@ Run start: 2026-10-04 03:10 PDT-local (host TZ; see `date` below)
 - rework loop 2: handoff coordinator -> builder, from 79b5f42, 14:29:24 CDT
 - builder delivered rework 2 rev 621342c (fixes H1, R2-2) 15:02:07 CDT
 - handoff coordinator -> adversary and gate, stage 1 re-verify round 3, rev 621342c, 15:02:07 CDT
+- verdict gate ACCEPT rev 621342c (verdict-r3.md commit 1d310ad; cites adversary r3 report ef71b5a, same rev). Rework loops: 2. Stage 1 ACCEPTED REVISION: 621342c6d1d5651e863b24e8124601552874b4d7 2026-10-04 15:21:23 CDT
+  - non-blocking carry-overs: stalled large control upload holds slot (R3-1); 1M-payment import >10s (R3-2).
+
+## Stage 2
+- start 2026-10-04 15:21:23 CDT; stage-2/ created as copy of accepted stage-1/ (no .git inside)
