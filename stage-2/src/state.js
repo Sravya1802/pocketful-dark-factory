@@ -10,6 +10,10 @@ const { isValidHash } = require('./passwords');
 const HANDLE_RE = /^[a-z0-9_]{1,20}$/;
 const RFC3339_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 const STATUSES = ['pending', 'paid', 'declined', 'cancelled'];
+const AUTH_STATUSES = ['open', 'captured', 'voided', 'expired'];
+const DEFAULT_TTL = 600n;
+// Lifetimes are bounded so every expiry stays a four-digit-year RFC 3339 timestamp.
+const MAX_TTL = 100n * 366n * 24n * 3600n;
 const MAX_ID = 64;
 
 // A problem with a fixture or an imported state. `type` errors are wrong JSON types (400).
@@ -29,6 +33,10 @@ function now() {
   let ms = Date.now();
   if (ms < lastMs) ms = lastMs;
   lastMs = ms;
+  return stampAt(ms);
+}
+
+function stampAt(ms) {
   const d = new Date(ms);
   const iso = d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + 'T'
     + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds()) + '.'
@@ -62,7 +70,47 @@ class State {
     this.settlements = new Map();
     this.idem = new Map();      // user id, method+path, key -> { fp (body digest), status, body }
     this.operators = new Set();
+    this.authorizations = new Map(); // id -> authorization (insertion order)
+    this.openAuths = new Set();      // authorizations whose status is 'open'
+    this.ttlSeconds = DEFAULT_TTL;
     this.seq = 0;
+  }
+
+  // ---- holds -----------------------------------------------------------------
+  // A user's `held` is the sum of the remainders of their open authorizations; it is
+  // kept up to date by every step that opens, captures, voids or expires a hold.
+
+  available(u) {
+    return u.balance - u.held;
+  }
+
+  remaining(a) {
+    return a.status === 'open' ? a.amount - a.captured : 0n;
+  }
+
+  openHold(a) {
+    this.authorizations.set(a.id, a);
+    if (a.status === 'open') {
+      this.openAuths.add(a.id);
+      this.users.get(a.fromId).held += this.remaining(a);
+    }
+  }
+
+  // Closes an open hold with `status`, releasing whatever it still holds.
+  closeHold(a, status) {
+    this.users.get(a.fromId).held -= this.remaining(a);
+    a.status = status;
+    this.openAuths.delete(a.id);
+  }
+
+  // Every open authorization whose expiry is at or before `ms` becomes expired and
+  // releases its remainder. Called at the start of every request, so all reads and
+  // writes see expiry even when nothing happened at the deadline.
+  expireDue(ms) {
+    for (const id of this.openAuths) {
+      const a = this.authorizations.get(id);
+      if (a.expiresMs <= ms) this.closeHold(a, 'expired');
+    }
   }
 
   nextSeq() {
@@ -83,6 +131,7 @@ class State {
   }
 
   addUser(u) {
+    u.held = 0n;
     this.users.set(u.id, u);
     this.byHandle.set(u.handle, u);
     this.byEmail.set(u.email.toLowerCase(), u);
@@ -106,8 +155,30 @@ class State {
       note: p.note,
       visibility: p.visibility,
       request_id: p.requestId,
+      authorization_id: p.authorizationId,
       settlement_id: p.settlementId,
       created_at: p.createdAt,
+    };
+  }
+
+  authorizationView(a) {
+    return {
+      authorization_id: a.id,
+      from_user_id: a.fromId,
+      from_handle: this.users.get(a.fromId).handle,
+      to_user_id: a.toId,
+      to_handle: this.users.get(a.toId).handle,
+      amount: a.amount,
+      captured_amount: a.captured,
+      remaining_amount: this.remaining(a),
+      currency: this.currency,
+      note: a.note,
+      visibility: a.visibility,
+      status: a.status,
+      expires_at: a.expiresAt,
+      payment_id: a.paymentIds.length ? a.paymentIds[a.paymentIds.length - 1] : null,
+      payment_ids: a.paymentIds.slice(),
+      created_at: a.createdAt,
     };
   }
 
@@ -138,7 +209,8 @@ class State {
     const payments = [];
     for (const p of this.payments.values()) {
       payments.push({ id: p.id, from_user_id: p.fromId, to_user_id: p.toId, amount: p.amount, note: p.note,
-        visibility: p.visibility, request_id: p.requestId, settlement_id: p.settlementId,
+        visibility: p.visibility, request_id: p.requestId, authorization_id: p.authorizationId,
+        settlement_id: p.settlementId,
         created_at: p.createdAt, created_ms: p.createdMs, seq: p.seq });
     }
     const requests = [];
@@ -158,6 +230,13 @@ class State {
       settlements.push({ id: s.id, operator_id: s.operatorId, payment_ids: s.paymentIds.slice(),
         committed_at: s.committedAt });
     }
+    const authorizations = [];
+    for (const a of this.authorizations.values()) {
+      authorizations.push({ id: a.id, from_user_id: a.fromId, to_user_id: a.toId, amount: a.amount,
+        captured_amount: a.captured, note: a.note, visibility: a.visibility, status: a.status,
+        expires_at: a.expiresAt, expires_ms: a.expiresMs, payment_ids: a.paymentIds.slice(),
+        created_at: a.createdAt, created_ms: a.createdMs, seq: a.seq });
+    }
     const tokens = [];
     for (const [t, uid] of this.tokens) tokens.push({ token: t, user_id: uid });
     const idempotency = [];
@@ -168,6 +247,7 @@ class State {
     return {
       currency: this.currency,
       minor_units: this.minorUnits,
+      authorization_ttl_seconds: this.ttlSeconds,
       seq: this.seq,
       users,
       tokens,
@@ -176,6 +256,7 @@ class State {
       requests,
       splits,
       settlements,
+      authorizations,
       idempotency,
     };
   }
@@ -258,6 +339,62 @@ function stampOrNow(o, what, fallback) {
   return s;
 }
 
+// `authorization_ttl_seconds`: optional, default 600; when supplied it must be a positive
+// integer number of seconds. Any other value is a validation failure (422).
+function ttlOf(o, what) {
+  if (!has(o, 'authorization_ttl_seconds')) return DEFAULT_TTL;
+  const n = intValue(o.authorization_ttl_seconds);
+  if (n === undefined || n < 1n || n > MAX_TTL) {
+    throw new StateError(what + ': authorization_ttl_seconds must be a positive integer');
+  }
+  return n;
+}
+
+// One authorization from a fixture (`exported` false) or an export (`exported` true).
+function authorizationFrom(st, raw, exported, fallbackStamp) {
+  const a = obj(raw, 'authorization');
+  const id = str(a, 'id', 'authorization', { id: true });
+  if (st.authorizations.has(id)) throw new StateError('duplicate authorization id ' + id);
+  const fromId = str(a, 'from_user_id', 'authorization');
+  const toId = str(a, 'to_user_id', 'authorization');
+  if (!st.users.has(fromId) || !st.users.has(toId)) throw new StateError('authorization ' + id + ': unknown user');
+  if (fromId === toId) throw new StateError('authorization ' + id + ': payer and receiver are the same');
+  const amount = int(a, 'amount', 'authorization', { min: 1n, max: SAFE });
+  const captured = int(a, 'captured_amount', 'authorization', { min: 0n, max: amount, ...(exported ? {} : { dflt: 0n }) });
+  const note = str(a, 'note', 'authorization', exported ? {} : { dflt: '' });
+  const visibility = str(a, 'visibility', 'authorization', exported ? {} : { dflt: 'public' });
+  if (visibility !== 'public' && visibility !== 'private') throw new StateError('authorization ' + id + ': bad visibility');
+  const status = str(a, 'status', 'authorization', exported ? {} : { dflt: 'open' });
+  if (!AUTH_STATUSES.includes(status)) throw new StateError('authorization ' + id + ': bad status');
+  if (status === 'open' && captured >= amount) throw new StateError('authorization ' + id + ': nothing left to hold');
+  const expires = parseStamp(str(a, 'expires_at', 'authorization'));
+  if (!expires) throw new StateError('authorization ' + id + ': bad expires_at');
+  let created;
+  if (exported) {
+    created = parseStamp(str(a, 'created_at', 'authorization'));
+    if (!created) throw new StateError('authorization ' + id + ': bad created_at');
+    created.ms = Number(int(a, 'created_ms', 'authorization', { min: 0n, max: SAFE }));
+  } else {
+    created = stampOrNow(a, 'authorization', fallbackStamp);
+  }
+  const paymentIds = arr(a, 'payment_ids', 'authorization', exported ? {} : { dflt: [] }).map((x) => {
+    if (typeof x !== 'string') throw new StateError('authorization ' + id + ': bad payment_ids', true);
+    return x;
+  });
+  return { id, fromId, toId, amount, captured, note, visibility, status,
+    expiresAt: expires.iso, expiresMs: exported ? Number(int(a, 'expires_ms', 'authorization', { min: 0n, max: SAFE })) : expires.ms,
+    paymentIds, createdAt: created.iso, createdMs: created.ms,
+    seq: exported ? Number(int(a, 'seq', 'authorization', { min: 0n, max: SAFE })) : st.nextSeq() };
+}
+
+// Applies expiry as of now and checks that no wallet holds more than it has.
+function settleHolds(st) {
+  st.expireDue(Date.now());
+  for (const u of st.users.values()) {
+    if (u.held > u.balance) throw new StateError('open holds of ' + u.id + ' exceed its balance');
+  }
+}
+
 // ---- reset fixture -> State (passwords still plaintext; caller hashes them) ----
 
 function stateFromFixture(fx) {
@@ -298,6 +435,7 @@ function stateFromFixture(fx) {
     const t = stampOrNow(p, 'payment', stamp);
     st.payments.set(id, { id, fromId, toId, amount, note, visibility,
       requestId: str(p, 'request_id', 'payment', { dflt: null, nullable: true }),
+      authorizationId: str(p, 'authorization_id', 'payment', { dflt: null, nullable: true }),
       settlementId: null, createdAt: t.iso, createdMs: t.ms, seq: st.nextSeq() });
   }
 
@@ -322,6 +460,12 @@ function stateFromFixture(fx) {
     if (typeof v !== 'string') throw new StateError('settlement_operator_ids must hold strings', true);
     st.operators.add(v);
   }
+
+  st.ttlSeconds = ttlOf(fx, 'fixture');
+  for (const raw of arr(fx, 'authorizations', 'fixture', { dflt: [] })) {
+    st.openHold(authorizationFrom(st, raw, false, stamp));
+  }
+  settleHolds(st);
   return { state: st, passwords };
 }
 
@@ -382,6 +526,8 @@ function stateFromExport(s) {
       amount: int(p, 'amount', 'payment', { min: 0n, max: SAFE }),
       note: str(p, 'note', 'payment'), visibility,
       requestId: str(p, 'request_id', 'payment', { nullable: true }),
+      // Stage-1 exports have no authorizations: absent means null.
+      authorizationId: str(p, 'authorization_id', 'payment', { nullable: true, dflt: null }),
       settlementId: str(p, 'settlement_id', 'payment', { nullable: true }),
       createdAt: t.iso, createdMs: Number(int(p, 'created_ms', 'payment', { min: 0n, max: SAFE })),
       seq: seqOf(p, 'payment') });
@@ -456,8 +602,22 @@ function stateFromExport(s) {
     st.idem.set(st.idemKey(userId, scope, key), { userId, scope, key, fp, status, body });
   });
 
+  // Stage-1 exports carry neither a lifetime nor authorizations.
+  st.ttlSeconds = ttlOf(s, 'state');
+  for (const raw of arr(s, 'authorizations', 'state', { dflt: [] })) {
+    const a = authorizationFrom(st, raw, true);
+    for (const pid of a.paymentIds) {
+      if (!st.payments.has(pid)) throw new StateError('authorization: unknown payment');
+    }
+    st.openHold(a);
+  }
+  settleHolds(st);
+
   // Cross references must resolve.
   for (const p of st.payments.values()) {
+    if (p.authorizationId !== null && !st.authorizations.has(p.authorizationId)) {
+      throw new StateError('payment: unknown authorization');
+    }
     if (p.requestId !== null && !st.requests.has(p.requestId)) throw new StateError('payment: unknown request');
     if (p.settlementId !== null && !st.settlements.has(p.settlementId)) throw new StateError('payment: unknown settlement');
   }
@@ -468,4 +628,5 @@ function stateFromExport(s) {
   return st;
 }
 
-module.exports = { State, StateError, stateFromFixture, stateFromExport, now, codePoints, HANDLE_RE, STATUSES };
+module.exports = { State, StateError, stateFromFixture, stateFromExport, now, stampAt, codePoints, HANDLE_RE, STATUSES,
+  AUTH_STATUSES };

@@ -60,7 +60,8 @@ function send(res, out, extraHeaders) {
     return;
   }
   const buf = Buffer.from(out.text, 'utf8');
-  res.writeHead(out.status, { 'Content-Type': JSON_TYPE, 'Content-Length': buf.length, ...extraHeaders });
+  res.writeHead(out.status, { ...out.headers, 'Content-Type': out.type || JSON_TYPE, 'Content-Length': buf.length,
+    ...extraHeaders });
   res.end(buf);
 }
 

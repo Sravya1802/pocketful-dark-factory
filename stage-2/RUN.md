@@ -1,10 +1,12 @@
-# Pocketful — stage 1
+# Pocketful — stage 2
 
 Build and start (from this directory):
 
 ```sh
 docker build -t pocketful . && docker run --rm -e PORT=8080 -p 8080:8080 pocketful
 ```
+
+Then open http://localhost:8080/ in a browser (after `POST /_test/reset` has seeded users).
 
 The service listens on `0.0.0.0:$PORT` (default `8080`) and answers `GET /health` with
 `{"status": "ok"}` as soon as it is up (well under a second). It needs no network access,
@@ -24,6 +26,11 @@ PORT=8080 node server.js
 - `src/state.js` — in-memory state, fixture loading, export/import of the full state.
 - `src/json.js` — strict JSON parser that keeps numbers exact (no binary floating point).
 - `src/passwords.js` — scrypt password hashing on the thread pool.
+- `src/ui.js` — serves the browser screens (`/`, `/requests`, `/split`, `/authorizations`,
+  `/signup`, `/login`) and their assets. `/requests` and `/authorizations` are shared with the
+  API: HTML when `Accept` contains `text/html`, JSON otherwise.
+- `public/` — the browser client (`app.js`, `app.css`, `icon.svg`): plain JavaScript and CSS,
+  system fonts, nothing loaded from outside the service.
 
 ## Design notes
 
@@ -54,3 +61,23 @@ PORT=8080 node server.js
   users use scrypt (N=2048, r=8, p=1), also with a per-user salt, so a reset of a few
   thousand users fits the 10 s budget; repeated resets of the same fixture reuse the
   finished hashes from memory.
+
+## Stage 2 notes
+
+- Holds (authorizations): `held` is the sum of the remainders of a user's open holds and
+  `available = total − held`. Every insufficient-funds check (payments, request payments,
+  settlement net debits, new holds) uses `available`. Opening, capturing, voiding and expiring
+  a hold each happen in the same single synchronous step as the money they affect.
+- Expiry is applied at the start of every request, before anything reads or writes holds, so
+  reads and writes reflect it even when nothing happened at the deadline.
+- Captures: default final (releases the remainder); `"final": false` keeps the remainder
+  held; capturing the whole remainder always closes the hold.
+- Export/import carry authorizations, captures and `authorization_ttl_seconds`; exports from
+  the stage-1 service (no authorizations, no lifetime) import with the defaults.
+- Browser client: the session and every unfinished form live in `localStorage`, so a refresh
+  (or an export/import upgrade) keeps them. Each submission keeps its idempotency key until
+  its outcome is known: a lost response shows the uncertain state and a retry sends the same
+  key and body; an unchanged resubmission after success replays the original instead of
+  creating anything new. Reads carry a sequence number and an older response never
+  overwrites a newer one. Typed amounts are converted to minor units with string arithmetic.
+

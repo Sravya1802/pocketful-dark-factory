@@ -6,7 +6,9 @@
 
 const { JNum, JsonSyntaxError, parse, parseLarge, intValue, fingerprint, stringify, stringifyPieces } = require('./json');
 const { hashPassword, verifyPassword, hashSeedPassword } = require('./passwords');
-const { State, StateError, stateFromFixture, stateFromExport, now, codePoints, STATUSES } = require('./state');
+const { State, StateError, stateFromFixture, stateFromExport, now, stampAt, codePoints, STATUSES, AUTH_STATUSES,
+} = require('./state');
+const { uiResponse, wantsHtml } = require('./ui');
 
 class ApiError extends Error {
   constructor(status, code, message) {
@@ -153,11 +155,11 @@ function userByHandle(handle) {
   return state.byHandle.get(handle);
 }
 
-function recordPayment(from, to, amount, note, visibility, requestId, settlementId, stamp) {
+function recordPayment(from, to, amount, note, visibility, requestId, settlementId, stamp, authorizationId = null) {
   const p = {
     id: state.newId('p_', state.payments),
     fromId: from.id, toId: to.id, amount, note, visibility,
-    requestId, settlementId, createdAt: stamp.iso, createdMs: stamp.ms, seq: state.nextSeq(),
+    requestId, authorizationId, settlementId, createdAt: stamp.iso, createdMs: stamp.ms, seq: state.nextSeq(),
   };
   from.balance -= amount;
   to.balance += amount;
@@ -274,7 +276,8 @@ async function login(ctx) {
 
 function me(ctx) {
   const u = authenticate(ctx.req);
-  return { status: 200, body: { user_id: u.id, display_name: u.displayName, handle: u.handle, balance: u.balance,
+  return { status: 200, body: { user_id: u.id, display_name: u.displayName, handle: u.handle,
+    balance: u.balance, total: u.balance, available: state.available(u), held: u.held,
     currency: state.currency, minor_units: state.minorUnits } };
 }
 
@@ -289,7 +292,7 @@ function createPayment(ctx) {
     if (toHandle === user.handle) throw new ApiError(422, 'self_payment', 'cannot pay yourself');
     const to = userByHandle(toHandle);
     if (!to) throw notFound('no user has handle ' + toHandle);
-    if (user.balance < amount) throw new ApiError(409, 'insufficient_funds', 'balance is below amount');
+    if (state.available(user) < amount) throw new ApiError(409, 'insufficient_funds', 'available balance is below amount');
     return state.paymentView(recordPayment(user, to, amount, note, visibility, null, null, now()));
   });
 }
@@ -326,7 +329,9 @@ function payRequest(ctx, id) {
     const r = findRequest(id);
     if (r.payerId !== user.id) throw forbidden('only the payer may pay this request');
     if (r.status !== 'pending') throw new ApiError(409, 'request_not_pending', 'request is ' + r.status);
-    if (user.balance < r.amount) throw new ApiError(409, 'insufficient_funds', 'balance is below amount');
+    if (state.available(user) < r.amount) {
+      throw new ApiError(409, 'insufficient_funds', 'available balance is below amount');
+    }
     const requester = state.users.get(r.requesterId);
     const p = recordPayment(user, requester, r.amount, r.note, visibility, r.id, null, now());
     r.status = 'paid';
@@ -457,8 +462,9 @@ function createSettlement(ctx) {
     });
     const net = new Map();
     for (const t of plan) {
-      net.set(t.from, (net.get(t.from) ?? t.from.balance) - t.amount);
-      net.set(t.to, (net.get(t.to) ?? t.to.balance) + t.amount);
+      // Held funds cannot fund a net debit: start from what each wallet has available.
+      net.set(t.from, (net.get(t.from) ?? state.available(t.from)) - t.amount);
+      net.set(t.to, (net.get(t.to) ?? state.available(t.to)) + t.amount);
     }
     for (const bal of net.values()) {
       if (bal < 0n) throw new ApiError(409, 'insufficient_funds', 'the settlement is not collectively affordable');
@@ -469,6 +475,103 @@ function createSettlement(ctx) {
     state.settlements.set(id, { id, operatorId: user.id, paymentIds: payments.map((p) => p.id), committedAt: stamp.iso });
     return { settlement_id: id, committed_at: stamp.iso, payments: payments.map((p) => state.paymentView(p)) };
   });
+}
+
+// ---- authorizations ----------------------------------------------------------------
+
+function createAuthorization(ctx) {
+  const user = authenticate(ctx.req);
+  const key = idempotencyKey(ctx.req);
+  return idempotent(ctx, user, key, (body) => {
+    const toHandle = reqString(body, 'to_handle');
+    const amount = amountField(body);
+    const note = noteField(body);
+    const visibility = visibilityField(body);
+    if (toHandle === user.handle) throw new ApiError(422, 'self_payment', 'cannot authorize a payment to yourself');
+    const to = userByHandle(toHandle);
+    if (!to) throw notFound('no user has handle ' + toHandle);
+    if (state.available(user) < amount) {
+      throw new ApiError(409, 'insufficient_funds', 'available balance is below amount');
+    }
+    const t = now();
+    const expires = stampAt(t.ms + Number(state.ttlSeconds) * 1000);
+    const a = { id: state.newId('a_', state.authorizations), fromId: user.id, toId: to.id, amount, captured: 0n,
+      note, visibility, status: 'open', expiresAt: expires.iso, expiresMs: expires.ms, paymentIds: [],
+      createdAt: t.iso, createdMs: t.ms, seq: state.nextSeq() };
+    state.openHold(a);
+    return state.authorizationView(a);
+  });
+}
+
+function findAuthorization(id) {
+  const a = state.authorizations.get(id);
+  if (!a) throw notFound('no such authorization');
+  return a;
+}
+
+function captureAuthorization(ctx, id) {
+  const user = authenticate(ctx.req);
+  const key = idempotencyKey(ctx.req);
+  return idempotent(ctx, user, key, (body) => {
+    let amount = null;
+    if (has(body, 'amount')) {
+      amount = intValue(body.amount);
+      if (amount === undefined || amount < 1n) throw invalid('amount must be a positive integer number of minor units');
+    }
+    if (has(body, 'final') && typeof body.final !== 'boolean') throw bad('final must be a boolean');
+    const final = has(body, 'final') ? body.final : true;
+    const a = findAuthorization(id);
+    if (a.toId !== user.id) throw forbidden('only the receiver may capture this authorization');
+    if (a.status === 'expired' && a.expiresMs <= ctx.now) {
+      throw new ApiError(409, 'authorization_expired', 'the authorization expired at ' + a.expiresAt);
+    }
+    if (a.status !== 'open') throw new ApiError(409, 'authorization_not_open', 'authorization is ' + a.status);
+    const remaining = state.remaining(a);
+    if (amount === null) amount = remaining;
+    if (amount > remaining) {
+      throw new ApiError(422, 'capture_exceeds_authorization', 'only ' + remaining + ' remains on this authorization');
+    }
+    // One step: the captured part leaves the hold and moves to the receiver; a final
+    // capture (or one that takes the whole remainder) closes the hold and releases the rest.
+    const payer = state.users.get(a.fromId);
+    payer.held -= amount;
+    a.captured += amount;
+    const p = recordPayment(payer, user, amount, a.note, a.visibility, null, null, now(), a.id);
+    a.paymentIds.push(p.id);
+    if (final || a.captured === a.amount) state.closeHold(a, 'captured');
+    return state.paymentView(p);
+  });
+}
+
+function voidAuthorization(ctx, id) {
+  const user = authenticate(ctx.req);
+  const a = findAuthorization(id);
+  if (a.fromId !== user.id) throw forbidden('only the payer may void this authorization');
+  if (a.status === 'open') state.closeHold(a, 'voided');
+  else if (a.status !== 'voided') throw new ApiError(409, 'authorization_not_open', 'authorization is ' + a.status);
+  return { status: 200, body: state.authorizationView(a) };
+}
+
+function listAuthorizations(ctx) {
+  const user = authenticate(ctx.req);
+  const q = ctx.query;
+  const direction = q.get('direction');
+  if (direction !== null && direction !== 'incoming' && direction !== 'outgoing') {
+    throw invalid('direction must be incoming or outgoing');
+  }
+  const status = q.get('status');
+  if (status !== null && !AUTH_STATUSES.includes(status)) throw invalid('unknown status');
+  const items = [];
+  for (const a of state.authorizations.values()) {
+    const outgoing = a.fromId === user.id;
+    const incoming = a.toId === user.id;
+    if (direction === 'incoming' ? !incoming : direction === 'outgoing' ? !outgoing : !(incoming || outgoing)) continue;
+    if (status !== null && a.status !== status) continue;
+    items.push(a);
+  }
+  items.sort(newestFirst);
+  const { slice, hasMore } = page(q, items);
+  return { status: 200, body: { authorizations: slice.map((a) => state.authorizationView(a)), has_more: hasMore } };
 }
 
 // ---- routing --------------------------------------------------------------------
@@ -489,6 +592,9 @@ const ROUTES = [
   { path: /^\/splits$/, methods: { POST: createSplit } },
   { path: /^\/activity$/, methods: { GET: activity } },
   { path: /^\/settlements$/, methods: { POST: createSettlement } },
+  { path: /^\/authorizations$/, methods: { POST: createAuthorization, GET: listAuthorizations } },
+  { path: /^\/authorizations\/([^/]+)\/capture$/, methods: { POST: captureAuthorization } },
+  { path: /^\/authorizations\/([^/]+)\/void$/, methods: { POST: voidAuthorization } },
 ];
 
 function decodeSegment(s) {
@@ -502,6 +608,11 @@ function decodeSegment(s) {
 // Returns { status, text? } where text is the serialized JSON body.
 async function handle(ctx) {
   try {
+    // Expiry is applied before anything reads or writes holds.
+    ctx.now = Date.now();
+    state.expireDue(ctx.now);
+    const screen = uiResponse(ctx);
+    if (screen) return screen;
     for (const route of ROUTES) {
       const m = route.path.exec(ctx.path);
       if (!m) continue;
@@ -512,13 +623,14 @@ async function handle(ctx) {
         arg = decodeSegment(m[1]);
         if (arg === null) {
           authenticate(ctx.req);
-          throw notFound('no such request');
+          throw notFound('no such resource');
         }
       }
       const out = await fn(ctx, arg);
       if (out.text !== undefined || out.pieces !== undefined) return out;
       return out.body === undefined ? { status: out.status } : { status: out.status, text: stringify(out.body) };
     }
+    if (ctx.method === 'GET' && wantsHtml(ctx.req)) return uiResponse(ctx, true);
     throw notFound('no route for ' + ctx.path);
   } catch (e) {
     if (e instanceof ApiError) return errorResponse(e.status, e.code, e.message);
