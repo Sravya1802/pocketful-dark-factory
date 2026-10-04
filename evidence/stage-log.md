@@ -29,3 +29,8 @@ Run start: 2026-10-04 03:10 PDT-local (host TZ; see `date` below)
 - handoff coordinator -> builder, stage 2, start rev 6d70743, 16:06:56 CDT
 - builder delivered stage 2 rev 92bbbf9 (self-reported: shipped 35/35 claimed stage 2, analyst API 278/278, UI 99/99) 16:37:13 CDT
 - handoff coordinator -> adversary and gate, stage 2, rev 92bbbf9, 16:37:13 CDT
+- verdict gate ACCEPT rev 92bbbf9 (verdict.md commit 233ccf5; cites adversary report 0ef84d5, same rev). Rework loops: 0. Stage 2 ACCEPTED REVISION: 92bbbf9a729a71eeed95934b8a72fdbda4ad297c 2026-10-04 17:02:00 CDT
+  - carry-over (low, non-blocking): silent failed wallet-refresh (S2-1); Accept q-values ignored (S2-2); handles not lowercased in UI.
+
+## Stage 3
+- start 2026-10-04 17:02:00 CDT; stage-3/ created as copy of accepted stage-2/ (no .git inside)
