@@ -26,6 +26,7 @@ async function hashPassword(password) {
 }
 
 const HASH_RE = /^scrypt\$([0-9]+)\$([0-9]+)\$([0-9]+)\$([A-Za-z0-9+/=]+)\$([A-Za-z0-9+/=]+)$/;
+// Seeded-user format written by revision 79b5f42; still verified so its exports import.
 const SEED_RE = /^scrypt-hmac\$([0-9]+)\$([0-9]+)\$([0-9]+)\$([A-Za-z0-9+/=]+)\$([A-Za-z0-9+/=]+)\$([A-Za-z0-9+/=]+)$/;
 
 function saneParams(n, r, p) {
@@ -59,34 +60,28 @@ async function verifyPassword(password, stored) {
 }
 
 // Seeded fixture users. A reset must finish within 10 s however many users the fixture
-// holds, and fixtures are reset many times with the same passwords. So the scrypt work
-// is done once per distinct password (cost SEED_N, memoised in memory under a keyed
-// digest with a per-process secret, never exported), and each user then gets their own
-// random salt over that result: stored values never repeat, even for equal passwords.
-const SEED_N = 4096;
+// holds, so seeded users are hashed at a lower scrypt cost (SEED_N), each with their own
+// random salt. Fixtures are reset many times with the same users, so the finished hash
+// is remembered in memory under a keyed digest of (user id, email, password) with a
+// per-process secret; that cache is never exported.
+const SEED_N = 2048;
 const seedSecret = crypto.randomBytes(32);
 const seedCache = new Map();
-const SEED_CACHE_MAX = 10000;
+const SEED_CACHE_MAX = 20000;
 
-function seedBase(password) {
-  const tag = crypto.createHmac('sha256', seedSecret).update(password, 'utf8').digest('base64');
+function hashSeedPassword(userId, email, password) {
+  const tag = crypto.createHmac('sha256', seedSecret)
+    .update(userId + '\u0000' + email + '\u0000' + password, 'utf8').digest('base64');
   let pending = seedCache.get(tag);
   if (!pending) {
     const salt = crypto.randomBytes(16);
-    pending = scrypt(password, salt, SEED_N, R, P, KEYLEN).then((key) => ({ salt, key }));
+    pending = scrypt(password, salt, SEED_N, R, P, KEYLEN)
+      .then((key) => ['scrypt', SEED_N, R, P, salt.toString('base64'), key.toString('base64')].join('$'));
     if (seedCache.size >= SEED_CACHE_MAX) seedCache.clear();
     seedCache.set(tag, pending);
     pending.catch(() => seedCache.delete(tag));
   }
   return pending;
-}
-
-async function hashSeedPassword(password) {
-  const { salt, key } = await seedBase(password);
-  const userSalt = crypto.randomBytes(16);
-  const mac = crypto.createHmac('sha256', userSalt).update(key).digest();
-  return ['scrypt-hmac', SEED_N, R, P, salt.toString('base64'), userSalt.toString('base64'), mac.toString('base64')]
-    .join('$');
 }
 
 module.exports = { hashPassword, verifyPassword, hashSeedPassword, isValidHash };

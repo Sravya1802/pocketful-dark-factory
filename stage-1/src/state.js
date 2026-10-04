@@ -4,7 +4,7 @@
 // can observe or interleave with a half-applied change.
 
 const crypto = require('crypto');
-const { JNum, intValue } = require('./json');
+const { JNum, intValue, digestCanonical, DIGEST_PREFIX } = require('./json');
 const { isValidHash } = require('./passwords');
 
 const HANDLE_RE = /^[a-z0-9_]{1,20}$/;
@@ -60,7 +60,7 @@ class State {
     this.requests = new Map();  // id -> request (insertion order)
     this.splits = new Map();
     this.settlements = new Map();
-    this.idem = new Map();      // user id, method+path, key -> { fp, status, body }
+    this.idem = new Map();      // user id, method+path, key -> { fp (body digest), status, body }
     this.operators = new Set();
     this.seq = 0;
   }
@@ -210,7 +210,7 @@ function int(o, k, what, opts = {}) {
     throw new StateError(what + ': missing ' + k);
   }
   const v = o[k];
-  if (!(v instanceof JNum)) throw new StateError(what + ': ' + k + ' must be a number', true);
+  if (!(v instanceof JNum) && typeof v !== 'number') throw new StateError(what + ': ' + k + ' must be a number', true);
   const n = intValue(v);
   if (n === undefined) throw new StateError(what + ': ' + k + ' must be an integer');
   if (opts.min !== undefined && n < opts.min) throw new StateError(what + ': ' + k + ' out of range');
@@ -225,6 +225,17 @@ function arr(o, k, what, opts = {}) {
   if (!Array.isArray(o[k])) throw new StateError(what + ': ' + k + ' must be an array', true);
   return o[k];
 }
+// Visits every element of the array o[k], dropping each parsed element (and finally the
+// array) once used, so a large imported tree can be collected while the state is built.
+function each(o, k, what, fn) {
+  const a = arr(o, k, what);
+  for (let i = 0; i < a.length; i++) {
+    fn(a[i]);
+    a[i] = null;
+  }
+  o[k] = null;
+}
+
 function obj(v, what) {
   if (!isObj(v)) throw new StateError(what + ' must be an object', true);
   return v;
@@ -357,7 +368,7 @@ function stateFromExport(s) {
     return t;
   };
 
-  for (const raw of arr(s, 'payments', 'state')) {
+  each(s, 'payments', 'state', (raw) => {
     const p = obj(raw, 'payment');
     const id = str(p, 'id', 'payment', { id: true });
     if (st.payments.has(id)) throw new StateError('duplicate payment');
@@ -374,9 +385,9 @@ function stateFromExport(s) {
       settlementId: str(p, 'settlement_id', 'payment', { nullable: true }),
       createdAt: t.iso, createdMs: Number(int(p, 'created_ms', 'payment', { min: 0n, max: SAFE })),
       seq: seqOf(p, 'payment') });
-  }
+  });
 
-  for (const raw of arr(s, 'requests', 'state')) {
+  each(s, 'requests', 'state', (raw) => {
     const r = obj(raw, 'request');
     const id = str(r, 'id', 'request', { id: true });
     if (st.requests.has(id)) throw new StateError('duplicate request');
@@ -393,7 +404,7 @@ function stateFromExport(s) {
       splitId: str(r, 'split_id', 'request', { nullable: true }),
       createdAt: t.iso, createdMs: Number(int(r, 'created_ms', 'request', { min: 0n, max: SAFE })),
       seq: seqOf(r, 'request') });
-  }
+  });
 
   for (const raw of arr(s, 'splits', 'state')) {
     const sp = obj(raw, 'split');
@@ -426,12 +437,14 @@ function stateFromExport(s) {
       committedAt: stampOf(se, 'committed_at', 'settlement').iso });
   }
 
-  for (const raw of arr(s, 'idempotency', 'state')) {
+  each(s, 'idempotency', 'state', (raw) => {
     const rec = obj(raw, 'idempotency record');
     const userId = str(rec, 'user_id', 'idempotency record');
     const scope = str(rec, 'scope', 'idempotency record');
     const key = str(rec, 'key', 'idempotency record');
-    const fp = str(rec, 'fingerprint', 'idempotency record');
+    // Exports from earlier revisions hold the canonical body itself rather than its digest.
+    let fp = str(rec, 'fingerprint', 'idempotency record');
+    if (!fp.startsWith(DIGEST_PREFIX)) fp = digestCanonical(fp);
     const body = str(rec, 'body', 'idempotency record');
     const status = Number(int(rec, 'status', 'idempotency record', { min: 200n, max: 299n }));
     if (!st.users.has(userId)) throw new StateError('idempotency record: unknown user');
@@ -441,7 +454,7 @@ function stateFromExport(s) {
       throw new StateError('idempotency record: body is not JSON');
     }
     st.idem.set(st.idemKey(userId, scope, key), { userId, scope, key, fp, status, body });
-  }
+  });
 
   // Cross references must resolve.
   for (const p of st.payments.values()) {

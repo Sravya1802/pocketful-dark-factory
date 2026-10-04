@@ -156,6 +156,7 @@ function numInfo(text) {
 
 // Integral value of a parsed JSON value, or undefined when it is not an integral number.
 function intValue(v) {
+  if (typeof v === 'number') return Number.isSafeInteger(v) ? BigInt(v) : undefined;
   if (!(v instanceof JNum)) return undefined;
   const info = numInfo(v.text);
   if (!info.integral || info.value === null) return undefined;
@@ -173,6 +174,16 @@ function canonical(v) {
   if (Array.isArray(v)) return '[' + v.map(canonical).join(',') + ']';
   const keys = Object.keys(v).sort();
   return '{' + keys.map((k) => JSON.stringify(k) + ':' + canonical(v[k])).join(',') + '}';
+}
+
+// Fingerprint of a request body for idempotency: a digest of its canonical text.
+const crypto = require('crypto');
+const DIGEST_PREFIX = 's256:';
+function digestCanonical(text) {
+  return DIGEST_PREFIX + crypto.createHash('sha256').update(text, 'utf8').digest('base64');
+}
+function fingerprint(v) {
+  return digestCanonical(canonical(v));
 }
 
 // Serializer for response values: BigInt and integer Number become plain digits.
@@ -196,4 +207,75 @@ function stringify(v) {
   return '{' + parts.join(',') + '}';
 }
 
-module.exports = { JNum, JsonSyntaxError, parse, numInfo, intValue, canonical, stringify };
+// Large bodies (reset fixtures, imported exports) are parsed by the engine's native
+// parser, which is much faster and leaner than `parse`. Numbers stay exact: the reviver
+// sees each number's source text. A plain integer of at most 15 digits is exactly
+// representable and is kept as a number; every other number keeps its text (JNum).
+const SMALL_INT = /^-?(?:0|[1-9][0-9]{0,14})$/;
+function reviveNumber(key, value, context) {
+  if (typeof value !== 'number') return value;
+  return SMALL_INT.test(context.source) ? value : new JNum(context.source);
+}
+
+function parseLarge(text) {
+  if (text.charCodeAt(0) === 0xfeff) text = text.slice(1);
+  try {
+    return JSON.parse(text, reviveNumber);
+  } catch (e) {
+    if (e instanceof SyntaxError || e instanceof RangeError) throw new JsonSyntaxError(e.message);
+    throw e;
+  }
+}
+
+// Native serializer for large values; BigInt is written as its exact digits.
+function stringifyLarge(v) {
+  return JSON.stringify(v, (k, x) => (typeof x === 'bigint' ? JSON.rawJSON(x.toString()) : x));
+}
+
+// Serializes an object whose array members may be very large into a list of string
+// pieces (each at most about `pieceSize` characters) instead of one string, so the
+// output is never bounded by the engine's maximum string length. Concatenating the
+// pieces gives exactly stringifyLarge(v). Containers nested deeper than `depth` levels
+// are serialized whole by the native serializer.
+function stringifyPieces(v, pieceSize = 1 << 20, depth = 3) {
+  const pieces = [];
+  let cur = '';
+  const emit = (s) => {
+    cur += s;
+    if (cur.length >= pieceSize) {
+      pieces.push(cur);
+      cur = '';
+    }
+  };
+  const walk = (x, d) => {
+    if (d >= depth) {
+      emit(stringifyLarge(x));
+    } else if (Array.isArray(x)) {
+      emit('[');
+      for (let i = 0; i < x.length; i++) {
+        if (i) emit(',');
+        walk(x[i], d + 1);
+      }
+      emit(']');
+    } else if (x !== null && typeof x === 'object' && !(x instanceof JNum)) {
+      emit('{');
+      let first = true;
+      for (const k of Object.keys(x)) {
+        if (x[k] === undefined) continue;
+        if (!first) emit(',');
+        first = false;
+        emit(JSON.stringify(k) + ':');
+        walk(x[k], d + 1);
+      }
+      emit('}');
+    } else {
+      emit(stringifyLarge(x));
+    }
+  };
+  walk(v, 0);
+  if (cur) pieces.push(cur);
+  return pieces;
+}
+
+module.exports = { JNum, stringifyPieces, JsonSyntaxError, parse, parseLarge, numInfo, intValue, canonical, fingerprint, digestCanonical,
+  DIGEST_PREFIX, stringify, stringifyLarge };

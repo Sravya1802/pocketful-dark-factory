@@ -4,7 +4,7 @@
 // applied as a single indivisible step against the current state. Only password
 // hashing is asynchronous, and it never runs between a state check and its write.
 
-const { JNum, JsonSyntaxError, parse, intValue, canonical, stringify } = require('./json');
+const { JNum, JsonSyntaxError, parse, parseLarge, intValue, fingerprint, stringify, stringifyPieces } = require('./json');
 const { hashPassword, verifyPassword, hashSeedPassword } = require('./passwords');
 const { State, StateError, stateFromFixture, stateFromExport, now, codePoints, STATUSES } = require('./state');
 
@@ -33,23 +33,19 @@ function has(o, k) {
   return Object.prototype.hasOwnProperty.call(o, k);
 }
 
-function parseBody(raw) {
-  let text;
+// `body` is the request body already decoded as UTF-8 (null when it was not valid UTF-8).
+function parseBody(body, parser = parse) {
+  if (body === null) throw bad('request body is not valid UTF-8');
   try {
-    text = new TextDecoder('utf-8', { fatal: true }).decode(raw);
-  } catch (e) {
-    throw bad('request body is not valid UTF-8');
-  }
-  try {
-    return parse(text);
+    return parser(body);
   } catch (e) {
     if (e instanceof JsonSyntaxError || e instanceof RangeError) throw bad('request body is not valid JSON');
     throw e;
   }
 }
 
-function parseObjectBody(raw) {
-  const v = parseBody(raw);
+function parseObjectBody(body) {
+  const v = parseBody(body);
   if (v === null || typeof v !== 'object' || Array.isArray(v) || v instanceof JNum) {
     throw bad('request body must be a JSON object');
   }
@@ -134,9 +130,9 @@ function idempotencyKey(req) {
 // the same path is refused. The same key on another path is an unrelated request.
 // Failures throw before anything is recorded, so they claim nothing.
 function idempotent(ctx, user, key, fn) {
-  const body = parseObjectBody(ctx.raw);
+  const body = parseObjectBody(ctx.body);
   const scope = ctx.method + ' ' + ctx.path;
-  const fp = canonical(body);
+  const fp = fingerprint(body);
   const k = state.idemKey(user.id, scope, key);
   const rec = state.idem.get(k);
   if (rec) {
@@ -171,8 +167,16 @@ function recordPayment(from, to, amount, note, visibility, requestId, settlement
 
 // ---- handlers ----------------------------------------------------------------------
 
+// Hands over a large request text without keeping a reference, so it can be collected
+// as soon as it has been parsed.
+function takeBody(ctx) {
+  const text = ctx.body;
+  ctx.body = null;
+  return text;
+}
+
 async function reset(ctx) {
-  const fx = parseBody(ctx.raw);
+  const fx = parseBody(takeBody(ctx), parseLarge);
   let built;
   try {
     built = stateFromFixture(fx);
@@ -181,19 +185,22 @@ async function reset(ctx) {
     throw e;
   }
   const { state: next, passwords } = built;
-  const hashes = await Promise.all([...passwords.values()].map((pw) => hashSeedPassword(pw)));
-  let i = 0;
-  for (const uid of passwords.keys()) next.users.get(uid).passwordHash = hashes[i++];
+  const users = [...passwords.keys()].map((uid) => next.users.get(uid));
+  const hashes = await Promise.all(users.map((u) => hashSeedPassword(u.id, u.email, passwords.get(u.id))));
+  users.forEach((u, i) => { u.passwordHash = hashes[i]; });
   state = next;
   return { status: 204 };
 }
 
+// The snapshot is taken and serialized synchronously, so it is atomic; it is sent as
+// pieces so its size is not limited by the engine's maximum string length.
 function exportState() {
-  return { status: 200, body: { track: 'pocketful', format_version: 1, state: state.exportState() } };
+  return { status: 200,
+    pieces: stringifyPieces({ track: 'pocketful', format_version: 1, state: state.exportState() }) };
 }
 
 function importState(ctx) {
-  const env = parseBody(ctx.raw);
+  const env = parseBody(takeBody(ctx), parseLarge);
   if (env === null || typeof env !== 'object' || Array.isArray(env) || env instanceof JNum) {
     throw invalid('import body must be an export object');
   }
@@ -233,7 +240,7 @@ function signupConflict(email, handle) {
 }
 
 async function signup(ctx) {
-  const body = parseObjectBody(ctx.raw);
+  const body = parseObjectBody(ctx.body);
   if (has(body, 'display_name') && typeof body.display_name !== 'string') throw bad('display_name must be a string');
   const { email, password } = credentialFields(body);
   const displayName = reqString(body, 'display_name');
@@ -253,7 +260,7 @@ async function signup(ctx) {
 }
 
 async function login(ctx) {
-  const body = parseObjectBody(ctx.raw);
+  const body = parseObjectBody(ctx.body);
   const { email, password } = credentialFields(body);
   const user = state.byEmail.get(email.toLowerCase());
   const fail = new ApiError(401, 'unauthenticated', 'wrong email or password');
@@ -509,7 +516,7 @@ async function handle(ctx) {
         }
       }
       const out = await fn(ctx, arg);
-      if (out.text !== undefined) return out;
+      if (out.text !== undefined || out.pieces !== undefined) return out;
       return out.body === undefined ? { status: out.status } : { status: out.status, text: stringify(out.body) };
     }
     throw notFound('no route for ' + ctx.path);

@@ -36,11 +36,21 @@ PORT=8080 node server.js
   the write it guards.
 - Idempotency records are keyed by caller, method + path and key, and hold the canonical
   request body and the exact original response text.
-- Request bodies are capped at 256 KiB for API endpoints and 32 MiB for `/_test/reset` and
-  `/_test/import`, with one shared budget for all buffered bodies; larger bodies are drained
-  and answered `413` with the error envelope. Headers may be up to 1 MiB so that an
-  over-long `Idempotency-Key` still reaches validation (`422`).
+- Request bodies are capped at 256 KiB for API endpoints. Test-control calls (`/_test/reset`,
+  `/_test/import`, `/_test/export`) accept bodies up to 448 MiB and are processed one at a
+  time; only one control body over 16 MiB is transferred at a time (others wait under TCP
+  back-pressure), and all buffered bodies share one budget. Larger bodies are drained and
+  answered `413` with the error envelope. Headers may be up to 1 MiB so that an over-long
+  `Idempotency-Key` still reaches validation (`422`).
+- Export is serialized as an atomic snapshot and streamed in pieces, so its size is not
+  limited by the engine's maximum string length. Measured in a 2 CPU / 2 GiB container with
+  the heaviest payment shape (200-character notes, 40-character keys): 400 000 payments
+  export as 444 MB and import into a fresh container in 6.5 s. The import limit is reached
+  at roughly 420 000 such payments; that is the capacity of this in-memory design within
+  2 GiB.
+- Large control bodies are parsed by the native JSON parser with a reviver that keeps each
+  number's source text, so fixture and import values stay exact.
 - Passwords: signups use scrypt (N=16384, r=8, p=1) with a per-user salt. Seeded fixture
-  users use scrypt (N=4096) computed once per distinct password, wrapped with a per-user
-  salt (HMAC-SHA256), so resets of thousands of users fit the 10 s budget and no two stored
-  hashes are equal.
+  users use scrypt (N=2048, r=8, p=1), also with a per-user salt, so a reset of a few
+  thousand users fits the 10 s budget; repeated resets of the same fixture reuse the
+  finished hashes from memory.
