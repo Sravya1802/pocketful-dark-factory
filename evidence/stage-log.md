@@ -17,3 +17,5 @@ Run start: 2026-10-04 03:10 PDT-local (host TZ; see `date` below)
 - handoff coordinator -> adversary and gate, stage 1 re-verify, rev 79b5f42, 14:14:39 CDT
 - verdict gate REJECT (2nd) rev 79b5f42 (H1: export >32MiB not importable); cites adversary r2 report 176cebc; verdict commit 966aa3c. 14:29:24 CDT
 - rework loop 2: handoff coordinator -> builder, from 79b5f42, 14:29:24 CDT
+- builder delivered rework 2 rev 621342c (fixes H1, R2-2) 15:02:07 CDT
+- handoff coordinator -> adversary and gate, stage 1 re-verify round 3, rev 621342c, 15:02:07 CDT
