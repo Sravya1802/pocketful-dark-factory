@@ -24,3 +24,4 @@ Run start: 2026-10-04 03:10 PDT-local (host TZ; see `date` below)
 
 ## Stage 2
 - start 2026-10-04 15:21:23 CDT; stage-2/ created as copy of accepted stage-1/ (no .git inside)
+- handoff coordinator -> analyst, stage 2 requirements, rev 4d9c251, 15:21:47 CDT
