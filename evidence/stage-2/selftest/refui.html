@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pocketful (reference UI for check validation)</title>
+<style>
+:root{--ink:#1b2430;--muted:#4a5a6a;--bg:#f4f6f8;--card:#fff;--brand:#0b5e55;--brandink:#fff;--err:#8a1c1c;--errbg:#fdeaea;--unc:#7a4b00;--uncbg:#fff3d6;--ok:#14532d;--line:#c9d2db}
+*{box-sizing:border-box}body{margin:0;font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg)}
+header{background:var(--brand);color:var(--brandink);padding:.6rem 1rem;display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:center}
+header a,header button{color:var(--brandink);background:transparent;border:1px solid transparent;font:inherit;text-decoration:underline;cursor:pointer;padding:.2rem .4rem}
+main{max-width:960px;margin:0 auto;padding:1rem;display:grid;gap:1rem;grid-template-columns:1fr}
+@media(min-width:900px){main.two{grid-template-columns:1fr 1fr}}
+section{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:1rem;min-width:0}
+h1,h2{margin:.2rem 0 .6rem;font-size:1.1rem}label{display:block;font-weight:600;margin:.5rem 0 .2rem}
+input,select,button{font:inherit;max-width:100%}input,select{width:100%;padding:.5rem;border:1px solid #5b6b7b;border-radius:6px;background:#fff;color:var(--ink)}
+button.primary{background:var(--brand);color:var(--brandink);border:1px solid var(--brand);border-radius:6px;padding:.55rem 1rem;margin-top:.7rem;cursor:pointer}
+button.secondary{background:#fff;color:var(--ink);border:1px solid #5b6b7b;border-radius:6px;padding:.35rem .7rem;cursor:pointer}
+button:disabled{opacity:.7;cursor:progress}
+:focus-visible{outline:3px solid #ffb703;outline-offset:2px}
+.avail{font-size:2.2rem;font-weight:700}.sec{font-size:.95rem;color:var(--muted)}
+.err{background:var(--errbg);color:var(--err);border:1px solid var(--err);padding:.5rem;border-radius:6px;margin-top:.5rem}
+.unc{background:var(--uncbg);color:var(--unc);border:1px dashed var(--unc);padding:.5rem;border-radius:6px;margin-top:.5rem}
+.okmsg{color:var(--ok);margin-top:.5rem}.pend{color:var(--muted);margin-top:.5rem}
+ul{list-style:none;padding:0;margin:0}li.item{border-top:1px solid var(--line);padding:.6rem 0;overflow-wrap:anywhere;word-break:break-word}
+.row{display:flex;flex-wrap:wrap;gap:.4rem .8rem;align-items:center}
+</style></head><body>
+<header><strong>Pocketful</strong><nav id="nav" class="row"></nav><span id="who" class="row"></span></header>
+<main id="app"><p data-loading aria-busy="true">Loading…</p></main>
+<script>
+const $=(s,r=document)=>r.querySelector(s);
+const h=(tag,attrs={},...kids)=>{const e=document.createElement(tag);for(const[k,v]of Object.entries(attrs)){if(k==='text')e.textContent=v;else if(k.startsWith('on'))e.addEventListener(k.slice(2),v);else if(v!==false&&v!==null)e.setAttribute(k,v===true?'':v)}for(const kid of kids.flat(Infinity))if(kid!=null)e.append(kid);return e};
+const tid=(id,tag='div',a={},...k)=>h(tag,{'data-testid':id,...a},...k);
+const path=location.pathname;let TOKEN=localStorage.getItem('tok');let ME=null;
+const uid=()=>crypto.randomUUID?crypto.randomUUID():String(Math.random()).slice(2)+Date.now();
+async function api(method,url,body,key){const hd={'Accept':'application/json'};if(TOKEN)hd.Authorization='Bearer '+TOKEN;if(body!==undefined)hd['Content-Type']='application/json';if(key)hd['Idempotency-Key']=key;
+ const r=await fetch(url,{method,headers:hd,body:body===undefined?undefined:JSON.stringify(body)});let j=null;try{j=await r.json()}catch(e){}return{status:r.status,body:j}}
+function fmt(n,mu,cur){let s=String(n).padStart(mu+1,'0');return(mu?s.slice(0,-mu)+'.'+s.slice(-mu):s)+' '+cur}
+function parseDec(str,mu){str=String(str).trim();const re=mu?new RegExp('^\\d+(\\.\\d{1,'+mu+'})?$'):/^\d+$/;if(!re.test(str))return null;const[i,f='']=str.split('.');return Number(i+f.padEnd(mu,'0'))}
+function shares(total,n){const q=Math.floor(total/n),r=total%n;return Array.from({length:n},(_,i)=>q+(i<r?1:0))}
+const NAV=[['/','Wallet'],['/requests','Requests'],['/split','Split'],['/authorizations','Authorizations']];
+function chrome(){const nav=$('#nav');nav.replaceChildren();const who=$('#who');who.replaceChildren();
+ if(TOKEN&&ME){NAV.forEach(([p,t])=>nav.append(h('a',{href:p,text:t})));who.append(tid('current-user','span',{text:ME.display_name}),h('span',{text:'@'}),tid('current-handle','span',{text:ME.handle}),tid('logout-button','button',{type:'button',text:'Log out',onclick:()=>{localStorage.removeItem('tok');location.href='/login'}}))}
+ else{nav.append(h('a',{href:'/login',text:'Log in'}),h('a',{href:'/signup',text:'Sign up'}))}}
+async function loadMe(){if(!TOKEN)return null;const r=await api('GET','/me');if(r.status!==200){TOKEN=null;localStorage.removeItem('tok');return null}return r.body}
+function field(id,label,attrs={}){const i=tid(id,'input',{id,...attrs});return[h('label',{for:id,text:label}),i]}
+function money(n){return fmt(n,ME.minor_units,ME.currency)}
+function errText(r){return(r.body&&r.body.error&&r.body.error.message)||'Request failed ('+r.status+')'}
+
+// ---- auth pages
+function authPage(kind){const err=h('div',{});const f=kind==='login'?[field('login-email','Email',{type:'email'}),field('login-password','Password',{type:'password'})]:[field('signup-display-name','Display name'),field('signup-email','Email',{type:'email'}),field('signup-password','Password',{type:'password'})];
+ const btn=tid(kind+'-submit','button',{class:'primary',type:'button',text:kind==='login'?'Log in':'Sign up',onclick:async()=>{err.replaceChildren();
+  const v=id=>$('[data-testid='+id+']').value;const body=kind==='login'?{email:v('login-email'),password:v('login-password')}:{email:v('signup-email'),password:v('signup-password'),display_name:v('signup-display-name')};
+  const r=await api('POST','/auth/'+kind,body);if(r.status===200||r.status===201){localStorage.setItem('tok',r.body.token);location.href='/'}else err.append(tid('auth-error','div',{class:'err',role:'alert',text:errText(r)}))}});
+ return h('section',{},h('h1',{text:kind==='login'?'Log in':'Create your account'}),f,btn,err)}
+
+// ---- wallet + feed (/)
+let refreshSeq=0,applied=0;
+async function refreshWallet(){const my=++refreshSeq;const[m,a]=await Promise.all([api('GET','/me'),api('GET','/activity?limit=200')]);if(my<applied)return;applied=my;if(m.status===200){ME=m.body;renderWallet()}if(a.status===200)renderFeed(a.body.payments)}
+function renderWallet(){const w=$('#wallet');if(!w)return;w.replaceChildren(h('div',{class:'sec',text:'Available to spend'}),tid('wallet-available','div',{class:'avail','data-amount':ME.available,text:money(ME.available)}),
+ h('div',{class:'sec'},'Total ',tid('wallet-balance','span',{'data-amount':ME.total,text:money(ME.total)})),ME.held>0?h('div',{class:'sec'},'On hold ',tid('wallet-held','span',{'data-amount':ME.held,text:money(ME.held)})):null)}
+function renderFeed(list){const f=$('#feed');if(!f)return;f.replaceChildren();if(!list.length){f.append(tid('empty-activity','p',{text:'No activity yet.'}));return}
+ const ul=tid('activity-list','ul');list.forEach(p=>ul.append(h('li',{class:'item','data-testid':'activity-item-'+p.payment_id,'data-visibility':p.visibility},
+  tid('activity-parties-'+p.payment_id,'div',{text:p.from_handle+' → '+p.to_handle}),tid('activity-amount-'+p.payment_id,'strong',{text:money(p.amount)}),tid('activity-note-'+p.payment_id,'div',{text:p.note}),
+  h('div',{class:'sec',text:new Date(p.created_at).toLocaleString()+' · '+p.visibility}))));f.append(ul)}
+function moneyForm(o){ // generic pay-like form with retry identity
+ const st={pending:null,lastOkFp:null,busy:false};const msg=h('div',{});
+ const i={handle:field(o.p+'-handle','Recipient handle'),amount:field(o.p+'-amount','Amount',{inputmode:'decimal'}),note:field(o.p+'-note','Note'),vis:null};
+ const vis=tid(o.p+'-visibility','select',{id:o.p+'-visibility'},h('option',{value:'public',text:'public'}),h('option',{value:'private',text:'private'}));
+ const btn=tid(o.p+'-submit','button',{class:'primary',type:'button',text:o.cta,onclick:submit});
+ async function submit(){if(st.busy)return;const v=id=>$('[data-testid='+o.p+'-'+id+']').value;const mu=ME.minor_units;
+  const clear=()=>{[...msg.querySelectorAll('[data-state]')].forEach(e=>e.remove())};
+  const amt=parseDec(v('amount'),mu);clear();
+  if(amt===null||amt<1){msg.append(tid(o.p+'-error','div',{class:'err',role:'alert','data-state':'refused',text:'Enter an amount like 15 or 15.50 with at most '+mu+' decimal places.'}));return}
+  const body={to_handle:v('handle').trim(),amount:amt,note:v('note'),visibility:v('visibility')};const fp=JSON.stringify(body);
+  if(st.lastOkFp===fp)return; // unchanged form after success: no new request
+  if(!st.pending||st.pending.fp!==fp)st.pending={fp,key:uid()};
+  st.busy=true;btn.disabled=true;btn.setAttribute('aria-busy','true');const pend=h('div',{class:'pend','data-state':'pending',role:'status',text:'Sending…'});msg.append(pend);
+  let r;try{r=await api('POST',o.url,body,st.pending.key)}catch(e){pend.remove();st.busy=false;btn.disabled=false;btn.removeAttribute('aria-busy');
+   if(o.p==='pay')msg.append(tid('pay-uncertain','div',{class:'unc',role:'status','data-state':'uncertain',text:'We could not confirm whether your payment went through. Tap again to retry safely — it will not be sent twice.'}));
+   else msg.append(tid(o.p+'-error','div',{class:'err',role:'alert','data-state':'uncertain',text:'No response — try again.'}));return}
+  pend.remove();st.busy=false;btn.disabled=false;btn.removeAttribute('aria-busy');
+  if(r.status===201||r.status===200){st.lastOkFp=fp;st.pending=null;msg.append(h('div',{class:'okmsg',role:'status','data-state':'success',text:'Done.'}));o.after&&o.after()}
+  else{st.pending=null;msg.append(tid(o.p+'-error','div',{class:'err',role:'alert','data-state':'refused',text:errText(r)}));o.after&&o.after()}}
+ return h('section',{},h('h2',{text:o.title}),i.handle,i.amount,i.note,h('label',{for:o.p+'-visibility',text:'Visibility'}),vis,btn,msg)}
+function requestForm(){const msg=h('div',{});const f=[field('request-handle','Ask (handle)'),field('request-amount','Amount',{inputmode:'decimal'}),field('request-note','Note')];
+ const btn=tid('request-submit','button',{class:'primary',type:'button',text:'Request money',onclick:async()=>{msg.replaceChildren();const v=id=>$('[data-testid=request-'+id+']').value;const amt=parseDec(v('amount'),ME.minor_units);
+  if(amt===null||amt<1){msg.append(tid('request-error','div',{class:'err',role:'alert',text:'Enter a valid amount.'}));return}
+  const r=await api('POST','/requests',{payer_handle:v('handle').trim(),amount:amt,note:v('note')},uid());if(r.status===201)msg.append(h('div',{class:'okmsg',role:'status',text:'Request sent.'}));else msg.append(tid('request-error','div',{class:'err',role:'alert',text:errText(r)}))}});
+ return h('section',{},h('h2',{text:'Request money'}),f,btn,msg)}
+async function pageHome(app){app.className='two';await Promise.resolve();
+ const left=h('div',{style:'display:grid;gap:1rem'},h('section',{},h('h1',{text:'Wallet'}),h('div',{id:'wallet'}),tid('wallet-refresh','button',{class:'secondary',type:'button',text:'Refresh',onclick:refreshWallet})),
+  moneyForm({p:'pay',url:'/payments',title:'Pay someone',cta:'Pay',after:refreshWallet}),requestForm());
+ app.append(left,h('section',{},h('h2',{text:'Activity'}),h('div',{id:'feed'})));await refreshWallet()}
+
+// ---- requests
+async function pageRequests(app){const err=h('div',{});const box=h('div',{});app.append(h('section',{},h('h1',{text:'Requests'}),box,err));
+ async function load(){const r=await api('GET','/requests?limit=200');box.replaceChildren();const l=r.body.requests;if(!l.length){box.append(tid('empty-requests','p',{text:'No requests.'}));return}
+  const inc=tid('incoming-list','ul'),out=tid('outgoing-list','ul');
+  l.forEach(q=>{const mine=q.payer_id===ME.user_id;const li=h('li',{class:'item','data-testid':'request-item-'+q.request_id,'data-status':q.status},h('div',{text:(mine?q.requester_handle+' asks you':'You ask '+q.payer_handle)}),tid('request-amount-'+q.request_id,'strong',{text:money(q.amount)}),h('div',{text:q.note}),h('div',{class:'sec',text:q.status}));
+   const act=(label,id,fn)=>li.append(tid(id+'-'+q.request_id,'button',{class:'secondary',type:'button',text:label,onclick:async()=>{err.replaceChildren();let r;
+     if(fn==='pay')r=await api('POST','/requests/'+q.request_id+'/pay',{},uid());else r=await api('POST','/requests/'+q.request_id+'/'+fn);
+     if(r.status>=400)err.append(tid('request-error','div',{class:'err',role:'alert',text:errText(r)}));await load()}}));
+   if(q.status==='pending'&&mine){act('Pay','request-pay','pay');act('Decline','request-decline','decline')}if(q.status==='pending'&&!mine)act('Cancel','request-cancel','cancel');(mine?inc:out).append(li)});
+  box.append(h('h2',{text:'Incoming'}),inc,h('h2',{text:'Outgoing'}),out)}
+ await load()}
+
+// ---- split
+function pageSplit(app){const err=h('div',{});const prev=tid('split-preview','div',{'aria-live':'polite'});
+ const f=[field('split-amount','Total amount',{inputmode:'decimal'}),field('split-handles','Handles (comma separated, in order)'),field('split-note','Note')];
+ const calc=()=>{prev.replaceChildren();const amt=parseDec($('[data-testid=split-amount]').value,ME.minor_units);const hs=$('[data-testid=split-handles]').value.split(',').map(s=>s.trim()).filter(Boolean);
+  if(amt===null||!hs.length)return;const sh=shares(amt,hs.length);hs.forEach((x,i)=>prev.append(tid('split-share-'+x,'div',{text:money(sh[i])},)))};
+ app.append(h('section',{},h('h1',{text:'Split a bill'}),f,h('h2',{text:'Preview'}),prev,tid('split-submit','button',{class:'primary',type:'button',text:'Split',onclick:async()=>{err.replaceChildren();
+  const amt=parseDec($('[data-testid=split-amount]').value,ME.minor_units);const hs=$('[data-testid=split-handles]').value.split(',').map(s=>s.trim()).filter(Boolean);
+  if(amt===null||amt<1||!hs.length){err.append(tid('split-error','div',{class:'err',role:'alert',text:'Check the amount and handles.'}));return}
+  const r=await api('POST','/splits',{amount:amt,participant_handles:hs,note:$('[data-testid=split-note]').value},uid());
+  if(r.status===201)err.append(h('div',{class:'okmsg',role:'status',text:'Split created.'}));else err.append(tid('split-error','div',{class:'err',role:'alert',text:errText(r)}))}}),err));
+ app.addEventListener('input',calc)}
+
+// ---- authorizations
+async function pageAuth(app){const err=h('div',{});const box=h('div',{});
+ app.append(moneyForm({p:'authorize',url:'/authorizations',title:'Authorise a payment',cta:'Authorise',after:load}),h('section',{},h('h1',{text:'Authorizations'}),box,err));
+ async function load(){const[m,r]=await Promise.all([api('GET','/me'),api('GET','/authorizations?limit=200')]);ME=m.body;box.replaceChildren();const l=r.body.authorizations;if(!l.length){box.append(tid('empty-authorizations','p',{text:'No authorizations.'}));return}
+  const ul=tid('authorization-list','ul');l.forEach(a=>{const incoming=a.to_user_id===ME.user_id;const li=h('li',{class:'item','data-testid':'authorization-item-'+a.authorization_id,'data-status':a.status},h('div',{text:a.from_handle+' → '+a.to_handle}),tid('authorization-amount-'+a.authorization_id,'strong',{text:money(a.amount)}));
+   if(a.status==='captured')li.append(tid('authorization-captured-'+a.authorization_id,'div',{text:money(a.captured_amount)}));li.append(tid('authorization-expires-'+a.authorization_id,'div',{class:'sec',text:a.expires_at}),h('div',{class:'sec',text:a.status}));
+   if(a.status==='open'&&incoming){const id='cap-'+a.authorization_id;li.append(h('label',{for:id,text:'Capture amount'}),tid('authorization-capture-amount-'+a.authorization_id,'input',{id,value:fmt(a.remaining_amount,ME.minor_units,'').trim()}),
+     tid('authorization-capture-'+a.authorization_id,'button',{class:'secondary',type:'button',text:'Capture',onclick:async()=>{err.replaceChildren();const amt=parseDec($('[data-testid=authorization-capture-amount-'+a.authorization_id+']').value,ME.minor_units);
+      if(amt===null||amt<1){err.append(tid('authorization-error','div',{class:'err',role:'alert',text:'Enter a valid amount.'}));return}
+      const r=await api('POST','/authorizations/'+a.authorization_id+'/capture',{amount:amt},uid());if(r.status>=400)err.append(tid('authorization-error','div',{class:'err',role:'alert',text:errText(r)}));await load()}}))}
+   if(a.status==='open'&&!incoming)li.append(tid('authorization-void-'+a.authorization_id,'button',{class:'secondary',type:'button',text:'Void',onclick:async()=>{err.replaceChildren();const r=await api('POST','/authorizations/'+a.authorization_id+'/void');if(r.status>=400)err.append(tid('authorization-error','div',{class:'err',role:'alert',text:errText(r)}));await load()}}));
+   ul.append(li)});box.append(ul)}
+ await load()}
+
+(async()=>{ME=await loadMe();const app=$('#app');app.replaceChildren();
+ if(path==='/login'||path==='/signup'){chrome();app.append(authPage(path.slice(1)));return}
+ if(!ME){location.replace('/login');return}chrome();
+ if(path==='/')await pageHome(app);else if(path==='/requests')await pageRequests(app);else if(path==='/split')pageSplit(app);else if(path==='/authorizations')await pageAuth(app)})();
+</script></body></html>
