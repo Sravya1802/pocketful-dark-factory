@@ -488,3 +488,5 @@ input[aria-invalid="true"] { border-color: var(--danger); }
 .msgs:empty { display: none; }
 .msgs { display: grid; gap: 8px; }
 .span-all { grid-column: 1 / -1; }
+.auth-wrap .notice { margin-bottom: 16px; }
+.notice a { color: inherit; font-weight: 600; }

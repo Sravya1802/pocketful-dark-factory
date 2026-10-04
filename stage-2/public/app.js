@@ -1370,6 +1370,11 @@
     if (new URLSearchParams(location.search).get('ended') === '1') {
       put(errorBox, notice('pending', 'auth-info', 'Please log in again to continue.'));
     }
+    // Already signed in: say so, and still offer the form to switch accounts.
+    const signedIn = session ? h('div', { class: 'notice notice-success', role: 'status' },
+      h('div', null, h('strong', { text: 'You’re logged in as ' + (session.displayName || 'yourself') + '.' }),
+        h('span', null, h('a', { href: '/', text: 'Go to your wallet' }),
+          signup ? ', or create another account below.' : ', or log in as someone else below.'))) : null;
 
     let busy = false;
     form.addEventListener('submit', async (ev) => {
@@ -1400,6 +1405,7 @@
       setBusy(button, false);
       if (!r) return showError('We couldn’t reach Pocketful. Check your connection and try again.');
       if (r.ok && r.data && r.data.token) {
+        if (session && session.userId !== r.data.user_id) forgetUserData();
         session = { token: r.data.token, userId: r.data.user_id, displayName: r.data.display_name, handle: '' };
         saveSession();
         location.assign(safeNext());
@@ -1420,20 +1426,10 @@
         h('h1', { text: signup ? 'Create your account' : 'Welcome back' }),
         h('p', { class: 'lede', text: signup ? 'Send, request and split money with friends in seconds.'
           : 'Log in to see your balance and activity.' }),
+        signedIn,
         form),
       h('p', { class: 'auth-switch' }, signup ? 'Already have an account? ' : 'New to Pocketful? ',
         h('a', { href: signup ? '/login' : '/signup', text: signup ? 'Log in' : 'Create an account' }))));
-  }
-
-  function signedInScreen(main) {
-    put(main, h('div', { class: 'auth-wrap' },
-      h('section', { class: 'card' },
-        h('h1', { text: 'You’re logged in' }),
-        h('p', { class: 'lede' }, 'You’re using Pocketful as ', h('strong', { text: session.displayName || 'yourself' }),
-          '. Log out first to switch accounts.'),
-        h('div', { class: 'actions' },
-          h('a', { href: safeNext(), class: 'btn btn-primary', text: 'Go to your wallet' }),
-          h('button', { type: 'button', class: 'btn btn-quiet', onclick: logout }, 'Log out')))));
   }
 
   function notFoundScreen(main) {
@@ -1452,8 +1448,7 @@
     const main = $('#main');
     if (screen === 'login' || screen === 'signup') {
       renderTopbar();
-      if (session) signedInScreen(main);
-      else authScreen(main, screen);
+      authScreen(main, screen);
       return;
     }
     if (screen === 'notfound') {
