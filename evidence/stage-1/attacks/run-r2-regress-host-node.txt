@@ -1,0 +1,78 @@
+== G1_body_caps
+PASS G1.API body of exactly 262144 bytes -> 201
+PASS G1.API body of exactly 262145 bytes -> 413
+PASS G1.huge declared Content-Length answered 413 at once (no waiting for body)
+PASS G1.413 body carries the standard error shape
+PASS G1.chunked body over cap -> 413
+PASS G1.413 on keep-alive: connection drained or cleanly closed (next request works on same or new conn)
+   INFO max-size settlement body bytes: 79791
+PASS G1.32 transfers x 200-emoji notes (escaped, 79791 B) -> 201, notes verbatim
+PASS G1.…replay 200 identical
+PASS G1.split with 5001 participants (~40KB body) 201, shares sum
+PASS G1.…big split replay 200 identical
+PASS G1.50 concurrent 250KB bodies: all 201, each < 5s, /health < 1s
+   INFO 50 x 42MB statuses [413] in 0.4s
+PASS G1.F1 repro (50 x 42MB): 413 (or client-side transport reset while uploading), fast, service alive
+   INFO number-heavy body bytes: 240038
+PASS G1.F2 repro: 50 concurrent near-cap number-heavy bodies, max latency < 2s, /health < 1s
+== G2_budget_dos
+PASS G2.12 stalled 32MiB reset uploads do not block/refuse a normal payment
+PASS G2.health ok while reset uploads stalled
+PASS G2.60 stalled 260KB API uploads do not refuse a normal payment
+PASS G2.reset still works after stalled uploads closed
+   INFO large reset body MB: 12.5
+PASS G2.reset with 12.5MB fixture (60000 payments) -> 204 < 10s
+   INFO 6 concurrent large resets: [204] [0.4, 0.2, 0.1, 0.3, 0.5, 0.5]
+PASS G2.6 concurrent large resets: no 5xx/crash, all within 10s each
+PASS G2.reset body > 32MiB -> 413
+PASS G2.import body > 32MiB -> 413
+== G2b_budget_exhaustion
+PASS G2b.12 stalled uploads holding ~360MB: normal payment still served (201)
+PASS G2b.login still served
+   INFO reset while uploads stalled -> 204 None
+PASS G2b.reset itself (small) still served
+PASS G2b.service recovers after uploads closed
+== G3_export_size
+   INFO after 28000 successful payments (200-char notes, 40-char keys): export 37.4 MB, last export 0.2s, status 200, elapsed 4s
+   INFO import of that export: 413 in 0.0s
+   INFO export bytes: 37415205 import cap bytes: 33554432
+FAIL G3.unchanged export of a state built through the API (28000 payments, 37.4 MB) is accepted by import  :: (413, b'{"error":{"code":"payload_too_large","message":"request body exceeds 33554432 bytes"}}')
+PASS G3.export/import each within 10s at that size
+   INFO bytes per payment (export): 1336 -> payments before 32MiB cap: 25110
+== G4_passwords_and_xversion
+PASS G4.per-user salt: no two seeded users share a stored hash even with same password
+   INFO hash format: scrypt-hmac$4096$8$1$elYJzZ8dKKof+U/cA2Y
+   INFO signup hash format: ['scrypt$16384$8$1$T63KIf0AC21n4']
+PASS G4.import: login for seeded and signup users
+PASS G4.wrong passwords still 401 after import
+PASS G4.two seeded users same password both log in; cross-password fails
+PASS G4.100 logins @50 all 200, max < 5s
+PASS G4.200 signups @50 all 201, max < 5s
+PASS G4.payments during signup storm all 201 and < 1.5s each
+PASS G4.XVER import of export from df8f825 into 79b5f42 -> 204
+PASS G4.XVER seeded login (old N=16384 hash) works
+PASS G4.XVER signup login + old token work
+PASS G4.XVER retry of old payment replays 200
+PASS G4.XVER old pending request payable once, balances right
+PASS G4.XVER old settlement replay 200 identical
+PASS G4.XVER re-export then re-import in new revision is lossless
+== G5_headers
+PASS G5.Idempotency-Key of 255 chars -> 201 validation_failed JSON
+PASS G5.Idempotency-Key of 256 chars -> 422 validation_failed JSON
+PASS G5.Idempotency-Key of 20000 chars -> 422 validation_failed JSON
+PASS G5.Idempotency-Key of 500000 chars -> 422 validation_failed JSON
+PASS G5.Idempotency-Key of 900000 chars -> 422 validation_failed JSON
+   INFO 1100000-byte header -> b'HTTP/1.1 431 Request Header Fields Too L'
+PASS G5.1100000-byte header -> 431 (or clean 4xx), no crash
+   INFO 3000000-byte header -> b'HTTP/1.1 431 Request Header Fields Too L'
+PASS G5.3000000-byte header -> 431 (or clean 4xx), no crash
+PASS G5.100KB query string handled (200/4xx), no 5xx
+   INFO 5000 headers -> b'HTTP/1.1 200 OK\r\nContent-Type:'
+PASS G5.5000 headers no crash
+== G6_core_smoke
+PASS G6.fresh-key identical x50: 1x201 49x200
+PASS G6.zero-balance wallet overdraft storm: all 409
+PASS G6.1e3 accepted
+PASS G6.-0 rejected 422
+
+53 passed, 1 failed
