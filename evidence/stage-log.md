@@ -13,3 +13,5 @@ Run start: 2026-10-04 03:10 PDT-local (host TZ; see `date` below)
 - handoff coordinator -> adversary and gate, stage 1, rev df8f825, 13:42:48 CDT
 - verdict gate REJECT rev df8f825 (G1 large-body crash, G2 event-loop block, G3 long idempotency key 400 vs 422); cites adversary report e0f26b6; verdict commit 9d0c224. 14:09:50 CDT
 - rework loop 1: handoff coordinator -> builder, from df8f825, 14:09:50 CDT
+- builder delivered rework 1 rev 79b5f42 (fixes G1-G3; self-reported 192/192, shipped harness stage 1 pass) 14:14:39 CDT
+- handoff coordinator -> adversary and gate, stage 1 re-verify, rev 79b5f42, 14:14:39 CDT
