@@ -27,3 +27,5 @@ Run start: 2026-10-04 03:10 PDT-local (host TZ; see `date` below)
 - handoff coordinator -> analyst, stage 2 requirements, rev 4d9c251, 15:21:47 CDT
 - analyst delivered stage 2 rev 6d70743 (188-row matrix, 87 API checks, 99 UI tests) 16:06:56 CDT
 - handoff coordinator -> builder, stage 2, start rev 6d70743, 16:06:56 CDT
+- builder delivered stage 2 rev 92bbbf9 (self-reported: shipped 35/35 claimed stage 2, analyst API 278/278, UI 99/99) 16:37:13 CDT
+- handoff coordinator -> adversary and gate, stage 2, rev 92bbbf9, 16:37:13 CDT
