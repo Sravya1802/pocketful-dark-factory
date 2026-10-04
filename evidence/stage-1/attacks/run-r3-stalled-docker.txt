@@ -1,0 +1,3 @@
+50 stalled uploads of ~31MB; health/payment/login while stalled: [200, 201, 200] []
+health after release: 200
+PASS (alive; any refusal is a clean 4xx/503)

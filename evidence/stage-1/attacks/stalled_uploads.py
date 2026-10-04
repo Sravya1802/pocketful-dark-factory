@@ -11,10 +11,13 @@ fx = {"currency": "EUR", "minor_units": 2, "users": [{"id": "a", "email": "a@x.c
 assert call("POST", "/_test/reset", json.dumps(fx))[0] == 204
 tok = json.loads(call("POST", "/auth/login", json.dumps({"email": "a@x.com", "password": "correct horse"}))[1])["token"]
 held = []; chunk = b"x" * (MB * 1024 * 1024); st = []
-for i in range(N):
+import threading
+def up(i):
     try:
-        sk = socket.create_connection((u.hostname, u.port), timeout=30); sk.sendall(b"POST /_test/reset HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 33554432\r\n\r\n{" + chunk); held.append(sk)
+        sk = socket.create_connection((u.hostname, u.port), timeout=120); held.append(sk)
+        sk.sendall(b"POST /_test/reset HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 33554432\r\n\r\n{" + chunk)  # blocks when the server applies back-pressure
     except Exception as e: st.append(repr(e))
+for i in range(N): threading.Thread(target=up, args=(i,), daemon=True).start()
 time.sleep(2)
 r = [call("GET", "/health"), call("POST", "/payments", json.dumps({"to_handle": "b", "amount": 1}), {"Authorization": "Bearer " + tok, "Idempotency-Key": "s1"}), call("POST", "/auth/login", json.dumps({"email": "a@x.com", "password": "correct horse"}))]
 print(f"{len(held)} stalled uploads of ~{MB}MB; health/payment/login while stalled:", [x[0] for x in r], st[:2])

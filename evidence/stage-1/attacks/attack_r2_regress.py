@@ -127,7 +127,7 @@ def G1_body_caps():
     # F1 repro: 50 x 42MB
     big = ('{"to_handle":"bob","amount":1,"pad":[' + ",".join(["1.5e3"] * 7_000_000) + "]}").encode()
     t0 = time.time(); rs = pool(lambda i: raw(NEW, "POST", "/payments", rawbody=big, headers=idem(f"huge{i}"), token=T["ada"]), 50)
-    sts = sorted({r[0] for r in rs}); print("   INFO 50 x %.0fMB statuses %s in %.1fs" % (len(big) / 1e6, sts, time.time() - t0))
+    sts = sorted({r[0] for r in rs}, key=str); print("   INFO 50 x %.0fMB statuses %s in %.1fs" % (len(big) / 1e6, sts, time.time() - t0))
     check("G1.F1 repro (50 x 42MB): 413 (or client-side transport reset while uploading), fast, service alive", all(x == 413 or isinstance(x, str) for x in sts) and 413 in sts and time.time() - t0 < 10 and req(NEW, "GET", "/health")[0] == 200, sts)
     # F2: number-heavy at cap and concurrent
     nb = ('{"to_handle":"bob","amount":1,"pad":[' + ",".join(["1.5e3"] * 40000) + "]}").encode(); print("   INFO number-heavy body bytes:", len(nb))
@@ -166,16 +166,19 @@ def G2_budget_dos():
     check("G2.6 concurrent large resets: no 5xx/crash, all within 10s each", all(r[0] in (204, 413, 503) for r in rs) and max(r[3] for r in rs) < 10 and req(NEW, "GET", "/health")[0] == 200, [(r[0], round(r[3], 1)) for r in rs])
     # fixture beyond reset cap
     huge = '{"currency":"EUR","minor_units":2,"users":[],"pad":"' + "x" * (33 * 1024 * 1024) + '"}'
-    s, j, t, d = raw(NEW, "POST", "/_test/reset", rawbody=huge); check("G2.reset body > 32MiB -> 413", s == 413, (s, t[:100]))
-    s, j, t, d = raw(NEW, "POST", "/_test/import", rawbody=huge); check("G2.import body > 32MiB -> 413", s == 413, (s, t[:100]))
+    s, j, t, d = raw(NEW, "POST", "/_test/reset", rawbody=huge); print("   INFO 33MiB reset body ->", s, t[:80])
+    check("G2.33MiB reset body: no 5xx (r3: cap raised to 448MiB, so 204/422 expected)", s in (204, 400, 413, 422), (s, t[:100]))
+    s, j, t, d = raw(NEW, "POST", "/_test/import", rawbody=huge); check("G2.33MiB import body (no track) -> 422 not 413 (r3)", s == 422, (s, t[:100]))
 
 def G2b_budget_exhaustion():
     # connections that really upload ~30MB of a declared 32MiB reset body and then stall: can they exhaust the shared budget
     reset(NEW); T = toks(NEW); a = T["ada"]; held = []
     chunk = b"x" * (30 * 1024 * 1024)
-    for i in range(12):
-        u = U(NEW); sk = socket.create_connection((u.hostname, u.port), timeout=20)
-        sk.sendall(b"POST /_test/reset HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 33554432\r\n\r\n{" + chunk); held.append(sk)
+    def up(i):
+        u = U(NEW); sk = socket.create_connection((u.hostname, u.port), timeout=120); held.append(sk)
+        try: sk.sendall(b"POST /_test/reset HTTP/1.1\r\nHost: x\r\nContent-Type: application/json\r\nContent-Length: 33554432\r\n\r\n{" + chunk)
+        except Exception: pass
+    for i in range(12): threading.Thread(target=up, args=(i,), daemon=True).start()
     time.sleep(1)
     s, j = req(NEW, "POST", "/payments", {"to_handle": "bob", "amount": 1}, headers=idem("exh1"), token=a)
     check("G2b.12 stalled uploads holding ~360MB: normal payment still served (201)", s == 201, (s, j))

@@ -1,0 +1,15 @@
+-- after 12.0s with one stalled /_test/import upload (>16MiB sent, never finished), still waiting: []
+   finished so far: {'pay': (201, 0.0), 'health': (200, 0.0), 'reset': (204, 0.0), 'export': (200, 0.0)}
+PASS CL./_test/import: /health and API payment unaffected by stalled control upload
+PASS CL./_test/import: small reset/export are served within 10s despite a stalled upload (spec: control calls have a 10 s timeout)
+   after the stalled client disconnected: {'pay': (201, 0.0), 'health': (200, 0.0), 'reset': (204, 0.0), 'export': (200, 0.0)}
+PASS CL./_test/import: lane recovers after stalled client disconnects (all calls complete OK)
+PASS CL./_test/import: fresh reset works afterwards
+-- after 12.0s with one stalled /_test/reset upload (>16MiB sent, never finished), still waiting: []
+   finished so far: {'pay': (201, 0.0), 'health': (200, 0.01), 'export': (200, 0.0), 'reset': (204, 0.0)}
+PASS CL./_test/reset: /health and API payment unaffected by stalled control upload
+PASS CL./_test/reset: small reset/export are served within 10s despite a stalled upload (spec: control calls have a 10 s timeout)
+   after the stalled client disconnected: {'pay': (201, 0.0), 'health': (200, 0.01), 'export': (200, 0.0), 'reset': (204, 0.0)}
+PASS CL./_test/reset: lane recovers after stalled client disconnects (all calls complete OK)
+PASS CL./_test/reset: fresh reset works afterwards
+ALL PASS

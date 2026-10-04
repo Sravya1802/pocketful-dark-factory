@@ -1,0 +1,13 @@
+fixture 92 MB, 400000 payments
+reset: 204 1.89 s peak mem 338
+PASS reset big fixture 204 < 10s
+export: 200 0.76s 137 MB peak mem 338
+PASS export 200 < 10s
+import into B: 204 2.7 s
+PASS import of unchanged export 204 < 10s
+PASS re-export byte-identical
+PASS re-import into source 204 < 10s
+PASS feed read on big imported state < 1s
+peak container A mem MiB: 951
+PASS peak mem < 1.8GiB
+ALL PASS

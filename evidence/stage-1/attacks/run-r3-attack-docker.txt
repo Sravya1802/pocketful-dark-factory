@@ -1,0 +1,81 @@
+== H1_export_import_sizes
+   INFO wrote 60000 payments in 5s; container mem: 122.3MiB / 2GiB
+   INFO export 68.0 MB in 0.49s status 200; mem 282.3MiB / 2GiB
+PASS H1.export of 60k-payment state: 200 and < 10s
+PASS H1.export is a JSON object {track, format_version, state}
+   INFO import into process B: 204 in 0.71s; mem 281.8MiB / 2GiB
+PASS H1.unchanged 68.0 MB export imports into a separate process, < 10s
+PASS H1.re-export from B is byte-identical to A's export (tokens/hashes/ids/timestamps all preserved)
+PASS H1.B: A's bearer token valid, balance equals
+PASS H1.B: seeded login (ada) works
+PASS H1.B: replay same key + same body -> 200 identical original
+PASS H1.B: replay with reordered keys / 5.0 amount -> 200
+PASS H1.B: same key, different body (amount) -> 409 idempotency_key_reuse
+PASS H1.B: same key, different body (note) -> 409 idempotency_key_reuse
+PASS H1.B: same key, different body (extra field) -> 409 idempotency_key_reuse
+PASS H1.B: same key, different body (invalid) -> 409 idempotency_key_reuse
+PASS H1.B: same key, different body (missing visibility) -> 409 idempotency_key_reuse
+PASS H1.B: other user same key is a first use
+PASS H1.B: request replay 200 identical
+PASS H1.B: pay/decline/cancel race x5 after import: status consistent with balance, at most one pay
+PASS H1.B: imported pending request payable (201) with correct amount
+PASS H1.B: …replay 200
+PASS H1.B: 50 identical fresh-key writes on big imported state -> 1x201 + 49x200
+== H2_oldformat
+PASS H2.old-format export (older revision) imports into 621342c -> 204
+PASS H2.old seeded logins work (old hash format)
+PASS H2.old tokens valid
+PASS H2.old payment replay 200 identical (digest of old stored body)
+PASS H2.old payment same key different body -> 409
+PASS H2.old payment same key invalid body -> 409 (claimed before validation)
+PASS H2.old request replay 200
+PASS H2.old split replay 200 identical
+PASS H2.old split same key different order -> 409
+PASS H2.old settlement replay 200 identical / diff body 409
+PASS H2.old pending request payable once
+PASS H2.…and a different key on the paid request -> 409 request_not_pending
+PASS H2.re-export then import in the new revision is stable
+== H3_atomic_export_under_writes
+PASS H3.260 exports under a 40-writer storm: each is an atomic snapshot (sum, nonneg, balances == seed + payment ledger)
+PASS H3.later write changes later export only
+== H5_misc_control
+PASS H5.invalid import (empty) -> 422 unchanged
+PASS H5.invalid import (track) -> 422 unchanged
+PASS H5.invalid import (version) -> 422 unchanged
+PASS H5.invalid import (no state) -> 422 unchanged
+PASS H5.invalid import (state []) -> 422 unchanged
+PASS H5.invalid import (state {}) -> 422 unchanged
+PASS H5.invalid import (state str) -> 422 unchanged
+   INFO tamper drop idempotency section -> 422
+PASS H5.tampered state (drop idempotency section) no 5xx; if rejected, unchanged
+   INFO tamper drop users -> 422
+PASS H5.tampered state (drop users) no 5xx; if rejected, unchanged
+   INFO tamper null payments -> 422
+PASS H5.tampered state (null payments) no 5xx; if rejected, unchanged
+   INFO tamper neg balance -> 422
+PASS H5.tampered state (neg balance) no 5xx; if rejected, unchanged
+   INFO tamper dup user id -> 422
+PASS H5.tampered state (dup user id) no 5xx; if rejected, unchanged
+PASS H5.import unparseable -> 400
+PASS H5.export Content-Type application/json; charset=utf-8
+PASS H5.export response has Content-Length or chunked and parses
+PASS H5.200 mixed concurrent export/import/payment/feed: no 5xx
+PASS H5.…state afterwards consistent (sum 112500, nonneg)
+PASS H5.30 concurrent exports identical (no writes)
+PASS H5.reset clears tokens/keys
+== H4_memory_and_starvation
+   INFO big fixture MB: 28.3
+PASS H4.28MB reset 204 < 10s
+   INFO 16 concurrent large control bodies (28-40 MB): statuses [204], per-call [1.9, 1.4, 0.8, 3.1, 2.6, 3.8, 2.2, 4.7, 4.1, 5.8, 6.2, 5.2, 6.5, 7.6, 7.9, 7.1], total 8.0s, peak container mem 785 MiB, probe max 0.65s
+PASS H4.16 concurrent large reset/import: no 5xx, service alive
+PASS H4.…every call finishes within 10s (control-call timeout)
+PASS H4./health and /me stay < 1s and OK during large control traffic
+PASS H4.container memory peak < 1.8 GiB
+   INFO 460MB reset -> 413 b'{"error":{"code":"payload_too_large","message":"request body exceeds 469762048 bytes"}}' 0.9s, mem 735.9MiB / 2GiB
+PASS H4.460MB (>448MiB cap) reset -> 413/4xx, no crash
+PASS H4.460MB import -> 413/4xx, no crash
+   INFO 40 stalled 60MB-of-400MB control uploads: health/login True 200 mem 1.128GiB / 2GiB
+PASS H4.40 stalled big control uploads: service alive, login works, mem < 1.8GiB
+PASS H4.recovers after stalled uploads close (reset works)
+
+62 passed, 0 failed

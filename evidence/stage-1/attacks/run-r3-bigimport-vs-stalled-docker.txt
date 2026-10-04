@@ -1,0 +1,7 @@
+legit big fixture MB: 28.3
+reset alone: 204 0.47 s
+export alone: 200 0.18 s 40.5 MB
+import alone: 204 0.69 s
+legit big import while another client is stalled: STILL WAITING after 30.0s
+after stalled client disconnects: (204, 30.71)
+FAIL: legit big import delayed > 10s by a stalled big upload

@@ -1,0 +1,517 @@
+== A_races
+PASS A.race identical fresh key payments: 1x201 + 49x200 same body
+PASS A.race identical fresh key requests: 1x201 + 49x200 same body
+PASS A.race identical fresh key splits: 1x201 + 49x200 same body
+PASS A.race identical fresh key settlements: 1x201 + 49x200 same body
+PASS A.race pay same key: 1x201+49x200
+PASS A.pay moved money once
+PASS A.race pay distinct keys: exactly one 201, rest 409 request_not_pending
+PASS A.pay distinct keys: balances
+PASS A.pay/cancel/decline race consistency x15
+== B_overdraft
+PASS B.overdraft storm: 30 succeed (10000//333), rest insufficient_funds, never negative
+PASS B.sum invariant after storm
+PASS B.circular storm: no 5xx, sum invariant
+PASS B.settlement order-independent affordability (cy pays before being paid)
+PASS B.settlement unaffordable -> 409 and nothing moves
+PASS B.concurrent settlements: only affordable ones commit (1000 // 800 = 1)
+== C_idem
+PASS C.replay with reordered keys => 200 same body
+PASS C.replay with amount 100.0 (same JSON value) => 200 (not 409)
+PASS C.replay with amount 1e2 => 200
+PASS C.same key + extra unknown field is a different body => 409
+PASS C.claimed key + invalid body => 409 idempotency_key_reuse (before validation)
+PASS C.claimed key + unknown handle => 409
+PASS C.other user same key -> 201 payment to ada
+PASS C.same key different path succeeds 201
+PASS C.…and its replay is 200
+PASS C.same key on /requests/{id}/pay (third path) => 201
+PASS C.first failing attempt returns 422
+PASS C.first failing attempt returns 404
+PASS C.first failing attempt returns 422
+PASS C.key reusable after 4xx failures
+PASS C.key reusable after 422 over-max
+PASS C.key reusable after insufficient_funds 409
+PASS C.key length 0 => 400
+PASS C.key length 1 => 201
+PASS C.key length 255 => 201
+PASS C.key length 256 => 422
+PASS C.missing key => 400 missing_idempotency_key
+PASS C.unparseable body => 400 malformed_request
+PASS C.array body => 400 malformed_request
+PASS C.no token => 401
+PASS C.replay of request creation after cancel returns original pending body
+PASS C.pay {} vs {visibility:public} same key => 409
+PASS C.pay replay after paid => 200 original
+PASS C.pay already-paid new key => 409 request_not_pending
+PASS C.pay with empty body (no JSON) -> 201 or 400 (documented)
+PASS C.pay bad visibility => 422
+PASS C.pay visibility null => 422
+PASS C.whitespace/key order replay
+PASS C.duplicate JSON key doesn't 5xx
+== D_numbers
+PASS D.amount 1 accepted (201, or 409 only when above balance)
+PASS D.amount 1000.0 accepted (201, or 409 only when above balance)
+PASS D.amount 1e3 accepted (201, or 409 only when above balance)
+PASS D.amount 1E3 accepted (201, or 409 only when above balance)
+PASS D.amount 1.0e3 accepted (201, or 409 only when above balance)
+PASS D.amount 10e-1 accepted (201, or 409 only when above balance)
+PASS D.amount 0.1e1 accepted (201, or 409 only when above balance)
+PASS D.amount 1000000000 accepted (201, or 409 only when above balance)
+PASS D.amount 1e9 accepted (201, or 409 only when above balance)
+PASS D.amount 100e-2 accepted (201, or 409 only when above balance)
+PASS D.amount 0 rejected 4xx (no 5xx, no move)
+PASS D.amount -0 rejected 4xx (no 5xx, no move)
+PASS D.amount -1 rejected 4xx (no 5xx, no move)
+PASS D.amount 1.5 rejected 4xx (no 5xx, no move)
+PASS D.amount 0.5 rejected 4xx (no 5xx, no move)
+PASS D.amount 1000000001 rejected 4xx (no 5xx, no move)
+PASS D.amount 1e10 rejected 4xx (no 5xx, no move)
+PASS D.amount 1e400 rejected 4xx (no 5xx, no move)
+PASS D.amount 123456789012345678901234567890 rejected 4xx (no 5xx, no move)
+PASS D.amount true rejected 4xx (no 5xx, no move)
+PASS D.amount false rejected 4xx (no 5xx, no move)
+PASS D.amount "100" rejected 4xx (no 5xx, no move)
+PASS D.amount null rejected 4xx (no 5xx, no move)
+PASS D.amount [] rejected 4xx (no 5xx, no move)
+PASS D.amount {} rejected 4xx (no 5xx, no move)
+PASS D.amount 1e-1 rejected 4xx (no 5xx, no move)
+PASS D.amount 1.0000000000000000000001 rejected 4xx (no 5xx, no move)
+PASS D.amount NaN rejected 4xx (no 5xx, no move)
+PASS D.amount Infinity rejected 4xx (no 5xx, no move)
+PASS D.amount -Infinity rejected 4xx (no 5xx, no move)
+PASS D.amount 01 rejected 4xx (no 5xx, no move)
+PASS D.amount +1 rejected 4xx (no 5xx, no move)
+PASS D.amount .5 rejected 4xx (no 5xx, no move)
+PASS D.amount 1. rejected 4xx (no 5xx, no move)
+PASS D.amount 0x10 rejected 4xx (no 5xx, no move)
+PASS D.amount 1e rejected 4xx (no 5xx, no move)
+PASS D.amount "" rejected 4xx (no 5xx, no move)
+PASS D.amount 9007199254740993 rejected 4xx (no 5xx, no move)
+PASS D.amount 1e3.5 rejected 4xx (no 5xx, no move)
+PASS D.amount -0.0 rejected
+PASS D.amount 1000000000.0000 ok? (integral)
+PASS D.wrong-type 'amount string' is 422 (not 400)
+PASS D.wrong-type to_handle number is 400 malformed
+   INFO to_handle=5 -> (400, {'error': {'code': 'malformed_request', 'message': 'to_handle must be a string'}})
+   INFO missing to_handle -> (422, {'error': {'code': 'validation_failed', 'message': 'to_handle is required'}})
+PASS D.note null => 422
+PASS D.note number => 422
+PASS D.note 200 chars ok
+PASS D.note 201 chars => 422
+PASS D.note 200 emoji (200 code points, 400 UTF-16 units) accepted
+PASS D.note 201 emoji => 422
+PASS D.note verbatim unicode/control chars
+PASS D.note not trimmed
+   INFO lone surrogate note -> 201 {'payment_id': 'p_e0bb23455c8849dd', 'from_user_id': 'u_ada', 'from_handle': 'ada', 'to_user_id': 'u_bob', 'to_handle': 
+PASS D.lone surrogate no 5xx
+PASS D.to_handle 'BOB' => 404/422 only (handles are lowercase exact)
+PASS D.to_handle 'Bob' => 404/422 only (handles are lowercase exact)
+PASS D.to_handle ' bob' => 404/422 only (handles are lowercase exact)
+PASS D.to_handle 'bob ' => 404/422 only (handles are lowercase exact)
+PASS D.to_handle 'b0b' => 404/422 only (handles are lowercase exact)
+PASS D.to_handle '' => 404/422 only (handles are lowercase exact)
+PASS D.to_handle 'bob\x00' => 404/422 only (handles are lowercase exact)
+PASS D.visibility 'PUBLIC' => 422
+PASS D.visibility 'Private' => 422
+PASS D.visibility '' => 422
+PASS D.visibility ' public' => 422
+PASS D.visibility 1 => 422
+PASS D.visibility True => 422
+PASS D.self payment with huge amount: validation (422)
+   INFO self+amount0 -> (422, {'error': {'code': 'validation_failed', 'message': 'amount must be between 1 and 1000000000'}})
+PASS D.body empty => 400 malformed_request
+PASS D.body null => 400 malformed_request
+PASS D.body string => 400 malformed_request
+PASS D.body number => 400 malformed_request
+PASS D.body trunc => 400 malformed_request
+PASS D.body trailing => 400 malformed_request
+PASS D.deeply nested 5000 => 4xx not 5xx/hang
+PASS D.5MB body over the 256KiB API cap -> 413 JSON error (r2: cap added)
+PASS D.amount 1e999999999 rejected fast, no 5xx
+PASS D.amount of 100000 digits rejected, no 5xx
+PASS D.amount 1e-999999999 rejected, no 5xx/hang
+PASS D.amount 0e999999999 rejected (value 0), no hang
+== E_splits
+PASS E.split 1000/3
+PASS E.split 1/3
+PASS E.split 10/3
+PASS E.split 999/3
+PASS E.split order gives extra unit to first handle (cy)
+PASS E.split 1 among 3 -> shares 1,0,0; a 0-share still yields a request (spec 9)
+PASS E.solo split valid, requests []
+PASS E.split without caller: 1 request (caller not included)
+PASS E.dup handle 422
+PASS E.empty 422
+PASS E.unknown handle 404
+PASS E.participants not array => 400/422
+PASS E.participants non-string elem => 400/422
+PASS E.amount 0 422
+PASS E.max amount split ok
+PASS E.note 201 -> 422
+PASS E.split many shares sum
+PASS E.share property amounts 1..39
+PASS E.split requests visible to payers + requester only
+PASS E.split not in activity
+PASS E.third-party pay => 403
+PASS E.requester pays own request => 403
+PASS E.payer cancel => 403
+PASS E.requester decline => 403
+PASS E.operator cancel others' request => 403 (permission not extended)
+PASS E.operator pay others' request => 403
+PASS E.pay unknown => 404
+PASS E.cancel unknown => 404
+PASS E.pay missing idem key => 400
+PASS E.decline twice 200
+PASS E.cancel after decline 409
+PASS E.pay after decline 409 request_not_pending
+PASS E.request beyond payer balance allowed
+PASS E.pay while short 409 insufficient_funds
+PASS E.still pending
+PASS E.same key after 409 then funded => 201
+   INFO paying zero-amount request -> 201 {'payment_id': 'p_c3223ccdf166605a', 'from_user_id': 'u_bob', 'from_handle': 'bob', 'to_user_id': 'u_ada', 'to_handle': 'ada', 'amount': 0, 'currency': 'EUR', '
+PASS E.zero-amount payment no 5xx; total preserved
+== F_feed
+PASS F.ada feed
+PASS F.bob feed (receiver sees private)
+PASS F.cy feed
+PASS F.op feed: only public (operator no private access)
+PASS F.limit=1 has_more
+PASS F.limit=4 exactly all => has_more false
+PASS F.offset past end empty
+PASS F.query 'limit=0' => 422
+PASS F.query 'limit=201' => 422
+PASS F.query 'limit=-1' => 422
+PASS F.query 'limit=1e2' => 422
+PASS F.query 'limit=4.0' => 422
+PASS F.query 'limit=+4' => 422
+PASS F.query 'limit=' => 422
+PASS F.query 'limit=abc' => 422
+PASS F.query 'offset=-1' => 422
+PASS F.query 'offset=1e0' => 422
+PASS F.query 'offset=' => 422
+PASS F.query 'limit=0x10' => 422
+PASS F.query 'limit=%2B4' => 422
+PASS F.query 'limit=5&limit=6' => None
+PASS F.query 'limit=%D9%A1%D9%A2' => 422
+PASS F.query 'limit=099999999999999999999999' => 422
+   INFO limit=05 -> 200
+PASS F.unknown query ignored
+PASS F.newest first
+PASS F.activity no auth 401
+PASS F.bad token 401
+PASS F.malformed auth header 401
+PASS F.bearer lowercase scheme
+PASS F.private request payment visible to both parties only
+PASS F.incoming
+PASS F.outgoing
+PASS F./requests?direction=sideways => 422
+PASS F./requests?status=nope => 422
+PASS F./requests?direction= => 422
+PASS F./requests?status=PAID => 422
+PASS F./requests?limit=0 => 422
+PASS F./requests of op empty
+== G_auth
+PASS G.signup 201 + token works
+PASS G.signup email case-variant dup => 409 email_taken
+PASS G.signup handle collision => 409 handle_taken
+PASS G.handle_taken created no account
+PASS G.long local part truncated to 20
+   INFO unicode local -> 201 {'user_id': 'u_d206fb254106ba94', 'display_name': 'L', 'handle': '_n_', 'balance': 0, 'currency': 'EUR', 'minor_units': 2}
+PASS G.signup email 'noat' => 422/400
+PASS G.signup email '@x.com' => 422/400
+PASS G.signup email 'a@' => 422/400
+PASS G.signup email 'a@@b' => 422/400
+PASS G.signup email '' => 422/400
+PASS G.signup email 'a b@c.com' => 422/400
+PASS G.signup email None => 422/400
+PASS G.signup email 5 => 422/400
+PASS G.7-char password 422
+PASS G.8-char ok
+   INFO 4 emoji (8 bytes/4 cps) password -> 422
+   INFO missing display_name -> 422 {'error': {'code': 'validation_failed', 'message': 'display_name is required'}}
+PASS G.password number => 400/422
+PASS G.wrong pw 401
+PASS G.unknown 401
+   INFO login uppercase email -> 200
+   INFO login empty -> 422 {'error': {'code': 'validation_failed', 'message': 'email is required'}}
+   INFO login pw null -> 400 {'error': {'code': 'malformed_request', 'message': 'password must be a string'}}
+PASS G.multiple tokens valid concurrently
+PASS G.100 logins @50 conc: all 200, p100<5s
+PASS G.100 signups @50 conc: all 201, max<5s
+PASS G.health latency during signup storm < 1s
+PASS G./me shape
+PASS G.pay to new signup
+== H_settle
+PASS H.no token 401
+PASS H.non-operator 403
+PASS H.settlement 201 shape, defaults, shared created_at
+PASS H.settlement member private hidden from operator? (op is not party)
+PASS H.payments exposed to parties in feed w/ settlement_id
+PASS H.ordinary payment settlement_id null
+PASS H.balances after
+PASS H.empty => 422
+PASS H.33 => 422
+PASS H.not-array => 422
+PASS H.non-object => 422
+PASS H.self => 422
+PASS H.unknown => 404
+PASS H.amount0 => 422
+PASS H.amt-str => 422
+PASS H.vis => 422
+PASS H.note => 422
+PASS H.missing-from => 422
+PASS H.entry error (self) precedes insufficient funds
+PASS H.entry error 404 precedes insufficient
+PASS H.insufficient 409
+PASS H.32 transfers ok
+PASS H.invalid doesn't claim key
+PASS H.replay 200 identical
+PASS H.same key different body 409
+PASS H.non-operator w/ operator's key: 403 (auth before idem)
+PASS H.operator /requests excludes others'
+PASS H.unknown field on transfer ignored
+PASS H.note null => 422
+PASS H.concurrent settlements w/ 0-balance cy: first fail? sum invariant & no 5xx
+PASS H.cy never negative
+PASS H.uppercase handle unknown 404
+== I_export
+PASS I.export shape
+PASS I.export is snapshot (earlier snapshot unchanged after later writes)
+PASS I.import 204
+PASS I.import: balances preserved
+PASS I.import: activity preserved exactly (ids, timestamps)
+PASS I.import: requests preserved
+PASS I.import: removed post-export write
+PASS I.import: new-user token still valid
+PASS I.import: login with signup pw
+PASS I.import: replay payment 200 identical
+PASS I.import: replay request 200
+PASS I.import: replay split 200
+PASS I.import: replay settlement 200
+PASS I.import: operator permission preserved
+PASS I.import: failed key stays reusable
+PASS I.import: pending request payable
+PASS I.import: no id collision after new writes
+PASS I.import twice 204/204
+PASS I.import repeated no duplication
+PASS I.export after import equals original export
+PASS I.invalid import (empty obj) => 422/204(1.0) w/o change
+PASS I.invalid import (wrong track) => 422/204(1.0) w/o change
+PASS I.invalid import (wrong version) => 422/204(1.0) w/o change
+PASS I.invalid import (no state) => 422/204(1.0) w/o change
+PASS I.invalid import (state null) => 422/204(1.0) w/o change
+PASS I.invalid import (state string) => 422/204(1.0) w/o change
+PASS I.invalid import (state empty) => 422/204(1.0) w/o change
+PASS I.invalid import (state array) => 422/204(1.0) w/o change
+PASS I.invalid import (version str) => 422/204(1.0) w/o change
+PASS I.invalid import (version 1.0) => 422/204(1.0) w/o change
+PASS I.import unparseable => 400
+PASS I.state missing a section => 422, unchanged, no 5xx
+   INFO negative balance import -> 422 {'error': {'code': 'validation_failed', 'message': 'invalid state: user: balance out of range'}}
+PASS I.import state w/ negative balance either 422-unchanged or ok-no-5xx
+PASS I.export has no plaintext passwords
+PASS I.reset clears imported tokens
+PASS I.reset clears idem keys
+PASS I.snapshots under write load keep sum invariant after import
+PASS I.reset negative balance 422
+PASS I.reset failure changed nothing
+PASS I.reset unparseable => 400
+   INFO reset {} -> (422, {'error': {'code': 'validation_failed', 'message': 'state: missing currency'}})
+PASS I.reset invalid fixture (dup handle) -> 4xx not 5xx, state unchanged if rejected
+PASS I.reset invalid fixture (bad handle) -> 4xx not 5xx, state unchanged if rejected
+PASS I.reset invalid fixture (dup id) -> 4xx not 5xx, state unchanged if rejected
+PASS I.reset invalid fixture (dup email) -> 4xx not 5xx, state unchanged if rejected
+PASS I.reset invalid fixture (bad minor_units) -> 4xx not 5xx, state unchanged if rejected
+PASS I.reset invalid fixture (unknown payment user) -> 4xx not 5xx, state unchanged if rejected
+PASS I.reset invalid fixture (unknown operator) -> 4xx not 5xx, state unchanged if rejected
+PASS I.reset invalid fixture (float balance) -> 4xx not 5xx, state unchanged if rejected
+PASS I.reset invalid fixture (req unknown user) -> 4xx not 5xx, state unchanged if rejected
+PASS I.JPY reset /me
+PASS I.BHD
+   INFO reset w/ 2^53-1 balance -> 204 None
+   INFO ada balance: 9007199254740991
+PASS I.big-balance payment exact
+PASS I.seeded private payment visible to parties, not op
+PASS I.seeded request payable, seeded balances not replayed
+PASS I.seeded paid request not payable
+== J_misc
+PASS J.health
+PASS J.unknown route 404 w/ error body
+   INFO DELETE /payments -> 405 b'{"error":{"code":"method_not_allowed","message":"method not allowed on /payments'
+PASS J.wrong method 4xx w/ error body
+   INFO GET /payments -> 405
+   INFO GET /me/ -> 404
+PASS J.bad percent-escape query no 5xx
+PASS J.NUL path no 5xx
+PASS J.huge path no 5xx
+PASS J.bad escape in id no 5xx
+PASS J.401 body shape
+PASS J.GET w/ odd content-type ok
+   INFO POST w/ text/plain -> 201
+PASS J.content-type response is application/json; charset=utf-8
+PASS J.response Content-Type 'application/json; charset=utf-8'
+PASS J.created_at RFC3339 with offset
+PASS J.ids <= 64 chars
+PASS J.currency in payment
+   INFO whitespace key -> 400 missing_idempotency_key
+   INFO non-ascii key -> 201 None
+   INFO duplicate Idempotency-Key header -> 201
+PASS J.dup header no 5xx
+PASS J.half-sent body connection doesn't wedge server
+PASS J.300 idle connections don't block health
+PASS J.chunked request body login 200
+   INFO huge content-length -> b'HTTP/1.1 413 Payload Too Large\r\nContent-'
+PASS J.still healthy
+== K_fuzz
+PASS K.fuzz 3000 mixed ops @50: zero 5xx
+PASS K.fuzz: all errors carry error body
+PASS K.fuzz: balances nonneg and sum preserved
+PASS K.fuzz: max latency < 5s
+PASS K.each request paid at most once, paid requests have exactly 1 payment
+== L_during
+PASS L.165 atomic exports during 40-writer storm: sum==13500 & nonneg
+PASS L.reads fast after storm
+== M_extra
+PASS M.50 concurrent signups same email: 1x201, 49x409 email_taken
+PASS M.50 concurrent signups same derived handle: exactly 1x201, rest 409 handle_taken
+PASS M.signup handle collides with seeded handle => 409 handle_taken
+PASS M.signup seeded email different case => 409 email_taken
+PASS M.truncation collision (20 chars) => handle_taken
+PASS M.handle_taken repeat still 409 handle_taken (not email_taken)
+PASS M.tokens unique and >=16 chars
+PASS M.lost response then retry /payments: 200 replay (original committed once)
+PASS M.lost response then retry /requests: 200 replay (original committed once)
+PASS M.lost response then retry /splits: 200 replay (original committed once)
+PASS M.lost response then retry /settlements: 200 replay (original committed once)
+PASS M.lost-response retries moved money exactly once per op (ada 10000-111-111(settle))
+PASS M.lost: exactly one request and one split-request
+PASS M.same key, 5 different bodies concurrently: exactly 1x201; others 200 (same body) or 409
+PASS M.…and exactly one payment applied
+PASS M.settlement first entry error by input order (404 at idx1 before 422 at idx2)
+PASS M.settlement idx0 422 before idx1 404
+PASS M.settlement idx0 self_payment before idx1 404
+PASS M.settlement amount>1e9 => 422
+PASS M.settlement missing key => 400
+PASS M.settlement transfers object => 4xx
+PASS M.settlement no transfers => 422
+PASS M.settlement null entry => 4xx
+PASS M.settlement non-string handle => 4xx
+PASS M.activity newest first (sequential writes, ties same-ms)
+PASS M.pagination walk covers all once
+PASS M.reset during write storm 204 within 10s
+   INFO reset 300 users distinct_pw=True: 204 in 0.44s
+PASS M.reset 300 users (distinct pw=True) 204 < 10s
+PASS M.login of seeded user after 300-user reset ok < 5s
+PASS M.50 concurrent seeded logins after 300-user reset all 200, < 5s
+PASS M.50 concurrent wrong-password logins: all 401, < 5s
+   INFO reset 2000 users distinct_pw=False: 204 in 3.03s
+PASS M.reset 2000 users (distinct pw=False) 204 < 10s
+PASS M.login of seeded user after 2000-user reset ok < 5s
+PASS M.50 concurrent seeded logins after 2000-user reset all 200, < 5s
+PASS M.50 concurrent wrong-password logins: all 401, < 5s
+   INFO reset 1000 users distinct_pw=True: 204 in 1.08s
+PASS M.reset 1000 users (distinct pw=True) 204 < 10s
+PASS M.login of seeded user after 1000-user reset ok < 5s
+PASS M.50 concurrent seeded logins after 1000-user reset all 200, < 5s
+PASS M.50 concurrent wrong-password logins: all 401, < 5s
+PASS M.export+import of 1000-user state within 10s
+PASS M.reset with 20000 seeded payments < 10s
+PASS M.deep offset page on 20000 payments < 1s
+PASS M.100 concurrent feed reads on 20000 payments all 200 < 5s
+PASS M.balances exact near 2^53
+   INFO two 2^53-1 balances reset -> 204 None
+   INFO pay into 2^53-1 wallet -> 201 None
+PASS M.no 5xx at balance overflow edge
+   INFO bob balance: 9007200254740991
+== N_harden
+PASS N.amount 1E+3 accepted
+PASS N.amount 1e+3 accepted
+PASS N.amount 1000e-0 accepted
+PASS N.amount 0.001e6 accepted
+PASS N.amount 1.000e3 accepted
+PASS N.amount 10000e-1 accepted
+PASS N.amount 1000.000000000000000000000000000000 accepted
+PASS N.amount -0e0 rejected 4xx
+PASS N.amount 0e0 rejected 4xx
+PASS N.amount 1e-3 rejected 4xx
+PASS N.amount 999.9999999999999999999 rejected 4xx
+PASS N.amount 1e+ rejected 4xx
+PASS N.amount --1 rejected 4xx
+PASS N.amount 1_000 rejected 4xx
+PASS N.amount ١٠٠ rejected 4xx
+PASS N.amount 1,000 rejected 4xx
+PASS N.amount 0b1 rejected 4xx
+PASS N.amount 1e3e3 rejected 4xx
+PASS N.amount "1e3" rejected 4xx
+PASS N.amount [1000] rejected 4xx
+PASS N.explicit default visibility is a different body => 409
+PASS N.explicit empty note is different body => 409
+PASS N.claimed key + note:null => 409 (before validation)
+PASS N.duplicate JSON key last-wins equals original => 200
+PASS N.claimed key + amount string => 409
+PASS N.key 'Case' distinct => 201
+PASS N.key 'case' distinct => 201
+PASS N.key 'café' distinct => 201
+PASS N.key 'café' distinct => 201
+PASS N.settlement transfer order change with same key => 409
+PASS N.settlement replay w/ reordered obj keys & numeric forms => 200 identical
+   INFO pay-payment body: {'payment_id': 'p_0d76573f921c976d', 'from_user_id': 'u_ada', 'from_handle': 'ada', 'to_user_id': 'u_bob', 'to_handle': 'bob', 'amount': 77, 'currency': 'EUR', 'note': 'taxi', 'visibility': 'private', 'request_id': 'rq_0ac97c20a9c603af', 'settlement_id': None, 'created_at': '2026-10-04T20:02:51.483+00:00'}
+PASS N.request payment direction payer->requester, amount, request_id
+PASS N.paid request carries payment_id and status
+PASS N.balances after pay
+PASS N.error body shape GET /me
+PASS N.error body shape POST /payments
+PASS N.error body shape POST /auth/login
+PASS N.error body shape GET /nothing
+PASS N.error body shape POST /_test/import
+   INFO auth 'two spaces' -> 200
+PASS N.auth two spaces no 5xx
+   INFO auth 'trailing space' -> 200
+PASS N.auth trailing space no 5xx
+   INFO auth 'no scheme' -> 401
+PASS N.auth no scheme no 5xx
+   INFO auth 'empty bearer' -> 401
+PASS N.auth empty bearer no 5xx
+   INFO auth 'BEARER' -> 200
+PASS N.auth BEARER no 5xx
+   INFO Idempotency-Key len 300 -> 422 b'{"error":{"code":"validation_failed","message":"Idempotency-'
+   INFO Idempotency-Key len 5000 -> 422 b'{"error":{"code":"validation_failed","message":"Idempotency-'
+   INFO Idempotency-Key len 20000 -> 422 b'{"error":{"code":"validation_failed","message":"Idempotency-'
+PASS N.key 300 chars => 422
+   INFO 20k query -> 200 b'{"payments":[{"payment_id":"p_0d76573f921c976d","from_user_id":"u_ada","from_han'
+PASS N.20k query no 5xx
+   INFO HEAD /health -> 405
+   INFO OPTIONS /health -> 405
+   INFO PUT /health -> 405
+   INFO PATCH /health -> 405
+   INFO /health/ -> 404
+PASS N.health ignores query
+   INFO nesting depth 50000 -> 400 b'{"error":{"code":"malformed_request","message":"request body'
+PASS N.nesting depth 50000: 4xx JSON error (no 5xx / crash)
+PASS N.alive after deep nesting
+   INFO nesting depth 200000 -> 413 b'{"error":{"code":"payload_too_large","message":"request body'
+PASS N.nesting depth 200000: 4xx JSON error (no 5xx / crash)
+PASS N.alive after deep nesting
+   INFO nesting depth 1000000 -> 413 b'{"error":{"code":"payload_too_large","message":"request body'
+PASS N.nesting depth 1000000: 4xx JSON error (no 5xx / crash)
+PASS N.alive after deep nesting
+   INFO object nesting 50000 -> 413
+PASS N.object nesting 50000 in unknown field no 5xx
+   INFO object nesting 200000 -> 413
+PASS N.object nesting 200000 in unknown field no 5xx
+PASS N.alive after deep nesting objects
+PASS N.300k transfers => 413 fast (<5s) (r2 cap)
+PASS N.split 100k unknown handles => 413/404 fast (<5s) (r2 cap)
+PASS N.split 100k duplicates => 413/422 fast (r2 cap)
+   INFO 30MB body: status 413 in 0.03s; max /health latency during = 0.01s
+PASS N.30MB body does not stall other requests > 1s
+PASS N.30MB body handled in < 5s
+PASS N.30MB body -> 413
+   INFO 3M-number body: status 413 in 0.03s; max /health latency = 0.00s
+PASS N.number-heavy 20MB body < 5s and no >1s stall
+PASS N.slow-drip body leaves server responsive
+PASS N.50 concurrent 5MB writes all 413 and each < 5s (r2 cap)
+PASS N.alive
+
+449 passed, 0 failed

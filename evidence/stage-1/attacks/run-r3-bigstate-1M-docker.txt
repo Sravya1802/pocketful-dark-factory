@@ -1,0 +1,13 @@
+fixture 231 MB, 1000000 payments
+reset: 204 7.27 s peak mem 1492
+PASS reset big fixture 204 < 10s
+export: 200 2.35s 343 MB peak mem 1492
+PASS export 200 < 10s
+import into B: 204 11.0 s
+FAIL import of unchanged export 204 < 10s :: (204, 11.0)
+PASS re-export byte-identical
+FAIL re-import into source 204 < 10s :: ('RemoteDisconnected', 8.72)
+PASS feed read on big imported state < 1s
+peak container A mem MiB: 1619
+PASS peak mem < 1.8GiB
+FAILED

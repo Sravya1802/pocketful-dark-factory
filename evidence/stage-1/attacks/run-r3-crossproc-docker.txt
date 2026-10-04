@@ -1,0 +1,11 @@
+   seeded hash format: ['scrypt$2048$8$1$nZMSznqXsdPQ', 'scrypt$2048$8$1$uujf9MC5xPdF', 'scrypt$2048$8$1$eyY80HIP9fpy']
+PASS import A-export into process B -> 204
+PASS B: login ada@example.com
+PASS B: login bob@example.com
+PASS B: login op@example.com
+PASS B: login new@x.com
+PASS B: wrong password rejected
+PASS B: A's bearer tokens valid
+PASS B: replay of A's payment 200 identical
+PASS B: re-export equals A's export (ignoring tokens minted by the logins above)
+ALL PASS
