@@ -36,3 +36,11 @@ PORT=8080 node server.js
   the write it guards.
 - Idempotency records are keyed by caller, method + path and key, and hold the canonical
   request body and the exact original response text.
+- Request bodies are capped at 256 KiB for API endpoints and 32 MiB for `/_test/reset` and
+  `/_test/import`, with one shared budget for all buffered bodies; larger bodies are drained
+  and answered `413` with the error envelope. Headers may be up to 1 MiB so that an
+  over-long `Idempotency-Key` still reaches validation (`422`).
+- Passwords: signups use scrypt (N=16384, r=8, p=1) with a per-user salt. Seeded fixture
+  users use scrypt (N=4096) computed once per distinct password, wrapped with a per-user
+  salt (HMAC-SHA256), so resets of thousands of users fit the 10 s budget and no two stored
+  hashes are equal.
