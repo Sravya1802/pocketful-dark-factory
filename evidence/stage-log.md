@@ -43,3 +43,5 @@ Run start: 2026-10-04 03:10 PDT-local (host TZ; see `date` below)
 - adversary report stage 3 committed af638e1 (S3-1 snapshot memory growth, S3-2, S3-3); adversary turn ended without messaging gate; coordinator relayed to gate 23:28:43 CDT
 - verdict gate REJECT (1st) rev 959960c (K1 snapshot memory growth/OOM, K2 seeded expired hold as_of, K3 lowercase t/z and leap second); cites adversary report af638e1; verdict commit 79ff565. 23:30:25 CDT
 - rework loop 1: handoff coordinator -> builder, from 959960c, 23:30:25 CDT
+- builder delivered rework 1 rev c5b8629 (fixes K1-K3; self-reported API 388/388, UI 99/99, shipped 6/6) 23:39:35 CDT
+- handoff coordinator -> adversary and gate, stage 3 re-verify, rev c5b8629, 23:39:35 CDT
