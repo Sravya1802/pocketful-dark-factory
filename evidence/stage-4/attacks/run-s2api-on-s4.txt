@@ -1,0 +1,256 @@
+== A G_races
+PASS A.race fresh-key x50 payments: 1x201 + 49x200 identical
+PASS A.race fresh-key x50 requests: 1x201 + 49x200 identical
+PASS A.race fresh-key x50 splits: 1x201 + 49x200 identical
+PASS A.race fresh-key x50 settlements: 1x201 + 49x200 identical
+PASS A.race fresh-key x50 authorizations: 1x201 + 49x200 identical
+PASS A.race capture same key x50: 1x201 + 49x200 identical, money moved once
+PASS A.race pay same key x50
+== B G_capture_races
+PASS B.double final capture, 50 distinct keys: exactly one 201, rest 409 authorization_not_open
+PASS B.…money moved once (bob +1000, ada -1000, held 0)
+PASS B.50 concurrent 100-captures (final:false) on 1000 hold: exactly 10 succeed
+PASS B.…others are 409 not_open or 422 capture_exceeds (never 5xx)
+PASS B.…cumulative captured == 1000, closed, held 0, bob +1000
+PASS B.…final state captured, captured_amount 1000, remaining 0, payment_ids has 10 distinct
+PASS B.capture(600)/void race x15: either captured or voided, never both, held 0, sums preserved
+PASS B.void of partially captured hold: voided, captured 300 kept, remaining 0, only remainder released
+PASS B.void twice 200 same state; capture after void 409 not_open
+PASS B.payments (500) cannot use held funds: only available//500 = 4 succeed; held never negative
+PASS B.…ada total == 10000 - 500*pays - 100*caps
+== C G_overdraft_holds
+PASS C.available after hold: 2000, held 8000, balance==total==10000
+PASS C.payment above available -> 409 insufficient_funds (total would cover)
+PASS C.payment == available -> 201
+PASS C.authorize with 0 available -> 409 insufficient_funds
+PASS C.paying a request while funds held -> 409 insufficient_funds, request stays pending
+PASS C.settlement net debit of a wallet with no available -> 409 and nothing moves
+PASS C.settlement with zero NET debit for held wallet is affordable
+PASS C.void releases: available back to 8000
+PASS C.request now payable after void (new key)
+PASS C.capture spends reserved money while payer available==0
+PASS C.second hold exceeding available -> 409
+PASS C.hold == remaining available -> 201
+PASS C.50 concurrent 900-holds on 10000: exactly 11 succeed, available 100, never negative
+PASS C.2000 mixed ops @50 with 3 watchers: invariants (balance==total, available==total-held>=0, held<=total) at every read
+PASS C.…sum of totals == seeded total after storm
+PASS C.…held == sum of remaining_amount of open outgoing holds, for every user
+PASS C.…every hold: captured + remaining <= amount, closed holds remaining 0
+== D G_idem
+PASS D.authorization replay (reordered, 5e2) -> 200 identical
+PASS D.authorization same key different body -> 409
+PASS D.claimed key + invalid body -> 409 (before validation)
+PASS D.extra field changes body -> 409
+PASS D.authorization replay after capture returns ORIGINAL body (status open, captured 0)
+PASS D.capture {amount:2000} then {} same key -> 409 idempotency_key_reuse (different JSON values)
+PASS D.exact replay -> 200 identical payment after authorization closed
+PASS D.{amount,final:true} differs from {amount} -> 409
+PASS D.claimed capture key + invalid body -> 409
+PASS D.new key on closed hold -> 409 authorization_not_open
+PASS D.payer using receiver's key: 403 (own scope, forbidden)
+PASS D.same key on /payments after /authorizations is a first use (201)
+PASS D.receiver key X on capture independent of payer's X
+PASS D.insufficient_funds hold does not claim key
+PASS D.422 capture_exceeds does not claim key
+PASS D.403 capture does not claim key
+PASS D.authorization missing key -> 400 missing_idempotency_key
+PASS D.capture missing key -> 400
+PASS D.capture key 256 chars -> 422
+   INFO capture with empty body -> 400 malformed_request
+PASS D.capture with empty body no 5xx
+PASS D.capture body null -> 400 malformed
+== E G_clock
+PASS E.expires_at == created_at + ttl(2s)
+PASS E.second hold fine
+PASS E.before expiry held 4000 available 6000
+PASS E.after deadline with no request in between: /me available restored 10000, held 0
+PASS E.list shows status expired for both
+PASS E.status=open excludes expired; status=expired includes (receiver too)
+PASS E.capture of clock-expired -> 409 authorization_expired (or not_open)
+   INFO capture expired code: authorization_expired
+PASS E.void of expired -> 409 authorization_not_open
+PASS E.full-balance payment works after expiry released the hold
+PASS E.partially captured then expired: captured 1000 kept, only remainder released, total 9000, held 0
+PASS E.creation replay after expiry returns original body (status open)
+PASS E.captures racing the 1s TTL boundary: only 201/authorization_expired/not_open, invariants hold
+PASS E.sum of totals preserved after boundary captures
+PASS E.ttl None -> 204
+PASS E.ttl 0 -> 422/400
+PASS E.ttl -1 -> 422/400
+PASS E.ttl 1.5 -> 422/400
+PASS E.ttl '600' -> 422/400
+PASS E.ttl True -> 422/400
+PASS E.ttl 100.0 -> 204
+PASS E.ttl 30000000000 -> 422/400
+PASS E.ttl [] -> 422/400
+PASS E.ttl {} -> 422/400
+PASS E.ttl 1 -> 204
+PASS E.default ttl 600s (expires_at - created_at)
+PASS E.timestamps RFC3339 with explicit offset
+== F G_seeded
+PASS F.seeded: only unexpired open holds: held 2000, available 8000 (past-open expired, captured/voided/expired hold nothing)
+PASS F.seeded statuses: a2 (open, past expires_at) reads expired; others as seeded
+PASS F.seeded ids preserved, receiver sees them
+PASS F.capture seeded hold a1
+PASS F.capture seeded past-open -> 409 expired/not_open
+PASS F.capture seeded captured -> 409 authorization_not_open
+   INFO capture seeded expired(with future expires_at) -> authorization_not_open
+PASS F.capture seeded expired -> 409
+PASS F.void seeded voided -> 200
+PASS F.void seeded captured -> 409
+PASS F.oversubscribed seeded holds (10001 > 10000) -> 422 validation_failed
+PASS F.…reset changed nothing (old token still works)
+PASS F.exactly 10000 of holds == balance accepted
+PASS F.…available 0
+PASS F.expired/voided holds don't count toward oversubscription -> 204
+PASS F.invalid seeded authorization (bad status) -> 422/400, no 5xx
+PASS F.invalid seeded authorization (unknown payer) -> 422/400, no 5xx
+PASS F.invalid seeded authorization (unknown receiver) -> 422/400, no 5xx
+PASS F.invalid seeded authorization (same party) -> 422/400, no 5xx
+PASS F.invalid seeded authorization (bad expires_at) -> 422/400, no 5xx
+PASS F.invalid seeded authorization (amount 0) -> 422/400, no 5xx
+PASS F.invalid seeded authorization (amount float) -> 422/400, no 5xx
+PASS F.invalid seeded authorization (dup id) -> 422/400, no 5xx
+PASS F.fixture without authorizations key -> empty list
+   INFO authorizations:null -> 400
+PASS F.authorizations:null no 5xx
+PASS F.authorizations:{} no 5xx
+   INFO near-future seeded -> 204
+PASS F.Z and +05:30 offsets parsed (z3 past -> expired): held 1000
+== G G_validation
+PASS G.authorize amount 1 accepted
+PASS G.authorize amount 1e3 accepted
+PASS G.authorize amount 1000.0 accepted
+PASS G.authorize amount 10e-1 accepted
+PASS G.authorize amount 1E+2 accepted
+PASS G.authorize amount 0 rejected 4xx
+PASS G.authorize amount -0 rejected 4xx
+PASS G.authorize amount -1 rejected 4xx
+PASS G.authorize amount 1.5 rejected 4xx
+PASS G.authorize amount 1000000001 rejected 4xx
+PASS G.authorize amount true rejected 4xx
+PASS G.authorize amount "5" rejected 4xx
+PASS G.authorize amount null rejected 4xx
+PASS G.authorize amount [] rejected 4xx
+PASS G.authorize amount 1e999 rejected 4xx
+PASS G.authorize amount NaN rejected 4xx
+PASS G.authorize amount 01 rejected 4xx
+PASS G.authorize amount +1 rejected 4xx
+PASS G.authorize to self -> 422 self_payment
+PASS G.authorize unknown handle -> 404
+PASS G.authorize note 201 -> 422
+PASS G.authorize note null -> 422
+PASS G.authorize visibility x -> 422
+PASS G.authorize to_handle number -> 400/422
+PASS G.authorize missing to_handle -> 422
+PASS G.authorize bad JSON -> 400
+PASS G.authorize array body -> 400
+PASS G.authorize note verbatim unicode
+PASS G.authorize unauthenticated 401
+PASS G.authorize no token 401
+PASS G.default visibility public, status open, payment_id null, payment_ids [], captured 0
+PASS G.capture {'amount': 0} -> 422
+PASS G.capture {'amount': -1} -> 422
+PASS G.capture {'amount': 1.5} -> 422
+PASS G.capture {'amount': '5'} -> 422
+PASS G.capture {'amount': True} -> 422
+PASS G.capture {'amount': None} -> 422
+PASS G.capture {'amount': 1001} -> 422 capture_exceeds
+PASS G.capture {'amount': 10000000000} -> 422
+PASS G.capture '{"amount":1e0}' -> 201
+   INFO final="true" -> 400 malformed_request
+PASS G.capture final="true" (non-boolean) -> 400/422, no 5xx, no money moved
+   INFO final=1 -> 400 malformed_request
+PASS G.capture final=1 (non-boolean) -> 400/422, no 5xx, no money moved
+   INFO final=null -> 400 malformed_request
+PASS G.capture final=null (non-boolean) -> 400/422, no 5xx, no money moved
+   INFO final=0 -> 400 malformed_request
+PASS G.capture final=0 (non-boolean) -> 400/422, no 5xx, no money moved
+   INFO final=[] -> 400 malformed_request
+PASS G.capture final=[] (non-boolean) -> 400/422, no 5xx, no money moved
+PASS G.…rejected captures moved no money (only the 1-unit capture happened)
+PASS G.payer capture -> 403
+PASS G.third-party capture -> 403 (not 404)
+PASS G.unknown authorization capture -> 404
+PASS G.third party + exceeding amount -> 403 first
+PASS G.receiver exceeding -> 422 capture_exceeds_authorization
+PASS G.receiver void -> 403
+PASS G.third-party void -> 403
+PASS G.void unknown -> 404
+PASS G.void no token 401
+PASS G.third party list does not see it; receiver and payer do
+PASS G.final:false capturing entire remainder closes it
+PASS G.capture on closed -> 409 not_open (even with 'exceeds')
+PASS G.open authorization absent from /activity for both parties
+PASS G.capture payment: shape, amount, note/visibility copied, authorization_id set, request_id null, settlement_id null
+PASS G.private capture payment hidden from third party, visible to both
+PASS G.ordinary payment has authorization_id null
+PASS G.open partially captured: captured 400, remaining 600, payment_id latest, payment_ids [id]
+PASS G.omitted amount defaults to remainder (600) and closes
+PASS G.final capture of 100 after 100 non-final: captured 200, remainder 800 released immediately
+PASS G.GET /authorizations?direction=x -> 422
+PASS G.GET /authorizations?status=x -> 422
+PASS G.GET /authorizations?limit=0 -> 422
+PASS G.GET /authorizations?limit=201 -> 422
+PASS G.GET /authorizations?offset=-1 -> 422
+PASS G.GET /authorizations?limit=1e2 -> 422
+PASS G.GET /authorizations?limit=4.0 -> 422
+PASS G.GET /authorizations?direction=incoming&status=captured -> 200
+PASS G.GET /authorizations?foo=1 -> 200
+PASS G.GET /authorizations no auth -> 401
+PASS G.pagination has_more true/false/false; newest first
+PASS G.direction filters
+== H G_me_and_stage1
+PASS H./me keys: user_id, display_name, handle, balance, total, available, held, currency, minor_units; no holds -> all agree
+PASS H.JPY authorization/amount semantics minor_units 0
+PASS H.BHD authorization/amount semantics minor_units 3
+PASS H.settlement debit above op's available (10000) -> 409 though total 100000
+PASS H.settlement net-affordable chain with holds -> 201
+PASS H.settlement member credit lands, constituents carry authorization_id null
+PASS H.request payment: authorization_id null, request_id set
+   INFO authorizing request out of scope: n/a
+== I G_export
+PASS I.export 200 shape
+PASS I.import into separate process -> 204
+PASS I.B: /me identical for every user (total, available, held)
+PASS I.B: authorizations list identical (ids, expires_at, captured, payment_ids, created_at)
+PASS I.B: replay authorization key -> 200 original
+PASS I.B: replay capture key -> 200 original payment
+PASS I.B: capture key reused with different body -> 409
+PASS I.B: imported open hold capturable for remainder (2000) once; held released
+PASS I.B: closed after final -> 409 not_open
+PASS I.B: voided hold stays voided, void again 200
+PASS I.B: imported pending request payable
+PASS I.export->import->export byte-stable (A->B)
+PASS I.import of an export whose hold expired meanwhile: hold expired, available full (expiry from absolute expires_at)
+PASS I.ttl setting survives import (new holds expire after 3s, not 600)
+   INFO state keys: ['currency', 'minor_units', 'authorization_ttl_seconds', 'seq', 'users', 'tokens', 'settlement_operator_ids', 'payments', 'requests', 'splits', 'settlements', 'authorizations', 'idempotency', 'snapshots']
+   INFO tamper drop authorizations -> 204
+PASS I.tampered import (drop authorizations): 4xx and unchanged, or accepted consistently, never 5xx
+   INFO tamper oversubscribe -> 422
+PASS I.tampered import (oversubscribe): 4xx and unchanged, or accepted consistently, never 5xx
+   INFO tamper null auth -> 422
+PASS I.tampered import (null auth): 4xx and unchanged, or accepted consistently, never 5xx
+PASS I.1654 exports during hold/payment storm: sum of totals == seeded, no negative
+PASS I.after storm export→import: every user's invariants hold and sum == seeded
+== J G_stage1_compat
+PASS J.stage-1 export imports into stage-2 -> 204
+PASS J.stage-1 tokens valid; /me has total==balance, held 0, available==balance
+PASS J.stage-1 logins (seeded + signup) work
+PASS J.old payment replay 200 identical (body has authorization_id? compare as JSON value)
+   INFO old replay body: True | differences: {}
+PASS J.old replay different body -> 409
+PASS J.old pending request payable once
+PASS J.old split / settlement replays 200
+PASS J.new default ttl after import of stage-1 export is 600 (no ttl in old state)
+PASS J.stage-1 import replaced prior stage-2 holds (list has only the new one)
+== K G_fuzz
+PASS K.4000 fuzzed ops @50: zero 5xx
+PASS K.…every error carries the standard error body
+PASS K.…invariants and sum == seeded total after fuzz
+PASS K.…max latency < 5s
+PASS K.authorization body > 256KiB -> 413
+PASS K.capture body > 256KiB -> 413
+PASS K.holds stay < 1s while 150 signups hash at 50 concurrency (no hashing under lock); signups all 201
+
+227 passed, 0 failed

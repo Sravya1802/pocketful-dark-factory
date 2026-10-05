@@ -1,0 +1,5 @@
+import with snapshot K in 2099 -> 204 None
+next payment created_at: 2099-01-01T00:00:00.000006+00:00 (real time: 2026-10-05T23:29:29Z )
+correction with effective_at = real now -> 201 201
+after a /_test/reset the next payment created_at is still: 2099-01-01T00:00:00.000018+00:00 (the service clock stays in 2099 until the process restarts)
+FAIL: an impossible snapshot instant (a read can never start in the future) was accepted and moved the service clock

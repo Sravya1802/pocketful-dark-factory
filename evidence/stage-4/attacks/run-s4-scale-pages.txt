@@ -1,0 +1,4 @@
+reset 204 0.8s
+sequential old-snapshot page: avg 0.043s max 0.104s
+300 pages of old snapshots @50 concurrent: max 12.22s avg 1.87s statuses [200]
+FAIL: a snapshot page exceeded the 5 s per-request limit (or errored) under 50 concurrent pages

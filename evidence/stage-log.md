@@ -57,3 +57,17 @@ Run start: 2026-10-04 03:10 PDT-local (host TZ; see `date` below)
 - handoff coordinator -> builder, stage 4, start rev 589e5f2, 01:17:22 CDT
 - builder delivered stage 4 rev 7cd430a (self-reported: shipped 147/35/6/5 claimed stage 4; analyst API 445/446, only IM4-30 which builder shows impossible: stage-3 export holds no snapshot data; UI 99/99) 01:27:11 CDT
 - handoff coordinator -> adversary and gate, stage 4, rev 7cd430a, 01:27:11 CDT
+- adversary stage 4 report committed 202894b (S4-1 tampered snapshot instant moves clock; S4-2 old-snapshot paging latency; IM4-30 impossibility confirmed); gate provisional ACCEPT f89a76e; coordinator asked gate for FINAL verdict 18:44:16 CDT
+- verdict gate ACCEPT (final) rev 7cd430a (verdict-final.md commit eeea755; supersedes provisional verdict.md f89a76e; cites adversary report 202894b, same rev). Rework loops: 0. Stage 4 ACCEPTED REVISION: 7cd430af817ba0c7d4422470d693f108e2e1ad80 2026-10-05 18:44:51 CDT
+  - non-blocking carry-overs: S4-1 import accepts a future snapshot instant and the clock stays there until restart; S4-2 old-snapshot paging latency grows with history; IM4-30 is impossible (stage-3 export has no snapshot data).
+
+## Summary
+| Stage | Accepted revision | Accepted by | Rework loops |
+|---|---|---|---|
+| 1 | 621342c6d1d5651e863b24e8124601552874b4d7 | gate (verdict-r3, 1d310ad) | 2 |
+| 2 | 92bbbf9a729a71eeed95934b8a72fdbda4ad297c | gate (verdict, 233ccf5) | 0 |
+| 3 | c5b8629dc841321fe4653356822b3b7eb9a3f4ec | owner decision (human input #5), then gate (verdict-r2, 8737866) | 1 |
+| 4 | 7cd430af817ba0c7d4422470d693f108e2e1ad80 | gate (verdict-final, eeea755) | 0 |
+
+Timezone note: all times are host-local CDT (UTC-5); the header line "PDT-local" at the top was a mislabel.
+Run: 2026-10-04 03:05 CDT to 2026-10-05 18:44 CDT wall-clock, including pauses while builder (stage 1), analyst (stage 3) and adversary (stage 3) turns were stopped by usage limits and resumed by the owner.

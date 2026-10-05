@@ -1,0 +1,26 @@
+== E G_scale
+PASS E.reset with 30000 seeded payments 204 < 10s (0.2s)
+   INFO 6 x 32-item batches over 30000 payments: avg 0.022s max 0.046s
+PASS E.32-item batches over 30k payments each < 5s (max 0.05s)
+   INFO rejected 32-item batch -> 409 stale_revision 0.00s
+PASS E.rejected (stale/insufficient) 32-item batch < 5s
+PASS E.50 concurrent 32-item batches over 30k payments: all 201, each < 5s (max 0.60s)
+PASS E.…sum preserved
+   INFO 400 write+snapshot cycles over 30000: first read avg 0.003s max 0.010s
+PASS E.300 concurrent old-snapshot pages @50 over 30k payments: all 200, max 1.91s < 5s
+PASS E.300 concurrent refunds on distinct large-history payments: all 201, each < 5s (max 0.02s)
+   INFO export 16.4 MB 0.1s
+PASS E.export with 400 snapshots + 30k payments < 10s
+PASS E.import < 10s (0.5s) and an imported snapshot pages identically
+== F G_fuzz
+PASS F.3000 fuzzed refund/batch/snapshot/revision requests @50: zero 5xx
+PASS F.…invariants after fuzz (sum preserved, nonneg)
+PASS F.garbage bodies on the new endpoints: no 5xx
+PASS F.batch body > 256 KiB -> 413
+PASS F.32 items with 200-char reasons stay under the body cap (404 unknown payment, not 413)
+PASS F.refunds stay < 1s while 150 signups hash at 50 concurrency (no hashing under the lock); signups all 201 (max 0.06s)
+PASS F.the same key string used on all ten idempotent write paths: all ten are first uses (201)
+PASS F.…and each replays independently (200)
+PASS F.…{} vs explicit bodies: refund body with a different amount under the same key -> 409
+
+18 passed, 0 failed

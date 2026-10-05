@@ -1,0 +1,240 @@
+== A G_refunds
+PASS A.every payment object carries refund_of: null
+PASS A.refund 201: opposite direction, refund_of, copies note/visibility, links null
+PASS A.balances: ada +300, bob -300 relative to the payment
+PASS A.refund by non-receiver (payer) -> 403 forbidden
+PASS A.refund by third party -> 403 forbidden
+PASS A.refund by operator -> 403 forbidden
+PASS A.refund by unknown payment -> 404 not_found
+PASS A.refund of a refund by its receiver (the original payer? no: bob is the refund's SENDER) -> 403 forbidden
+PASS A.refund of a refund by the refund's receiver -> 422 invalid_refund_target
+PASS A.refund of a refund: invalid_refund_target before refund_exceeds
+PASS A.refund amount 0 -> 422 validation_failed
+PASS A.refund amount -1 -> 422 validation_failed
+PASS A.refund amount 1.5 -> 422 validation_failed
+PASS A.refund amount '5' -> 422 validation_failed
+PASS A.refund amount True -> 422 validation_failed
+PASS A.refund amount None -> 422 validation_failed
+PASS A.refund amount [] -> 422 validation_failed
+PASS A.refund amount {} -> 422 validation_failed
+PASS A.refund amount 1000000001 -> 422 validation_failed
+PASS A.refund amount 1000000000000000000000000000000 -> 422 validation_failed
+PASS A.refund missing amount -> 422
+PASS A.refund amount 700.0 (integral numeric) accepted = exactly the remaining 700
+PASS A.cumulative cap reached: another 1 -> 422 refund_exceeds_payment
+PASS A.unknown fields ignored (still exceeds)
+PASS A.correction below the refunded total (399 < 400) -> 422 refund_exceeds_payment
+PASS A.stale_revision takes precedence over refund_exceeds_payment
+PASS A.correction exactly down to the refunded total (400) accepted
+PASS A.refund cap follows the CORRECTED amount (400 refunded of 400) -> exceeds
+PASS A.after correcting up to 2000 the cap is 2000: refund 1600 more accepted
+PASS A.…then 1 more exceeds
+PASS A.zero-amount correction of a fully refunded payment -> 422 refund_exceeds_payment
+PASS A.correction of a refund payment by its sender -> 422 linked_payment_immutable
+PASS A.…by the refund's receiver -> 403
+PASS A.refund payment revisions endpoint: both parties, revision 1 only
+PASS A.refund of a request payment (full) -> 201, request_id null, refund_of set
+PASS A.refund never reopens the request (still paid, same payment_id)
+PASS A.refunded request payment correction to the same amount is allowed
+PASS A.refund of a capture -> 201 (authorization_id null on the refund)
+PASS A.refund does not restore the hold or reopen/close the authorization (open, remaining 600, held 600)
+PASS A.capture correction -> 422 linked_payment_immutable
+PASS A.refund of a settlement member by its receiver -> 201 with settlement_id null
+PASS A.refund of a settlement member does not change membership: settlement replay identical
+PASS A.settlement replay still 200 identical
+PASS A.refund above the receiver's AVAILABLE (1000 total, 800 held) -> 409 insufficient_funds, nothing moves
+PASS A.refund equal to available (200) -> 201
+PASS A.refund replay -> 200 identical original body
+PASS A.same key different amount -> 409 idempotency_key_reuse
+PASS A.claimed key + invalid body -> 409 (before validation)
+PASS A.extra field = different body -> 409
+PASS A.replay still 200 after the cap is exhausted (not refund_exceeds)
+PASS A.a rejected refund (exceeds) does not claim its key
+PASS A.same key on another payment's refund path is a first use (201)
+PASS A.refund missing key -> 400; no token 401
+PASS A.refund bad JSON -> 400 malformed_request
+PASS A.order: 403 (non-receiver) before validation: invalid amount by the payer -> 403
+PASS A.order: 404 before 403: unknown payment by anyone
+PASS A.refund visibility follows the original: public refund in third party's feed, private refund hidden from third party, both visible to parties
+PASS A.third party statement shows none of them
+PASS A.refund appears in both statements with refund_of, negative delta for the refunder
+PASS A.sum of totals preserved after refunds
+PASS A.activity shows refunds as separate payments with the ORIGINAL amounts of the originals unchanged
+   INFO refund amount 0 -> 422
+== B G_races
+PASS B.50 concurrent refunds of 10 against a cap of 1000: all 50 fit (total 500)
+PASS B.50 concurrent refunds of 30 with 500 of cap left: exactly 16 succeed (480), rest refund_exceeds_payment
+PASS B.…cumulative refunded 980 and money consistent (ada +980)
+PASS B.refunds racing payments from the same wallet never overdraw (bob available >= 0, sum preserved)
+PASS B.refund(600) vs correction(down to 500) race x10: refunded total never exceeds the final corrected amount, sum preserved
+PASS B.refund(600) vs batch-correction(500) race x8: invariants hold
+PASS B.30 concurrent batches sharing payment 0's expected revision: exactly one 201, the rest stale_revision
+PASS B.batch vs single correction on the same revision: exactly one wins
+PASS B.30 identical batches with the same key: 1x201 + 29x200 identical
+== B2 G_races2
+PASS B.50 identical refunds with one key: exactly one 201, 49 x 200 identical, money moved once
+PASS B.refund of a payment corrected to 0 -> 422 refund_exceeds_payment
+PASS B.refund key length 255 passes the key check, 256 -> 422
+PASS B.30 concurrent batches, same key, 30 different bodies: exactly one 201; others 409 idempotency_key_reuse
+== C G_batches
+PASS C.batch 201 shape: id, recorded_at, revisions in input order, each with batch id
+PASS C.revisions endpoint: rev 2 has correction_batch_id; rev 1 has none; rev 1 untouched
+PASS C.batch recorded_at strictly later than the members' previous recorded_at
+PASS C.single corrections carry no correction_batch_id (key omitted)
+PASS C.balances after batch: ada -(500+0+1500) vs originals -(1000+1001+1002) -> ada net +1503... exact
+PASS C.originals unchanged: /activity shows the original amounts and no batch artifacts
+PASS C.replay -> 200 original batch response
+PASS C.replay (also after newer revisions) returns the original response with 200
+PASS C.same key different body -> 409 idempotency_key_reuse
+PASS C.claimed key + invalid body -> 409
+PASS C.the same key string by another user is independent (operator vs ada)
+PASS C.no token -> 401
+PASS C.non-operator ada (ada is the payment's own sender) -> 403 forbidden
+PASS C.non-operator bob (ada is the payment's own sender) -> 403 forbidden
+PASS C.non-operator cy (ada is the payment's own sender) -> 403 forbidden
+PASS C.403 before key check (non-operator, no key)
+PASS C.403 before body validation (non-operator, bad body)
+PASS C.operator without key -> 400 missing_idempotency_key
+PASS C.operator unparseable body -> 400
+PASS C.missing corrections -> 422 validation_failed (or 400 for wrong types)
+PASS C.empty array -> 422 validation_failed (or 400 for wrong types)
+PASS C.object -> 422 validation_failed (or 400 for wrong types)
+PASS C.null -> 422 validation_failed (or 400 for wrong types)
+PASS C.string -> 422 validation_failed (or 400 for wrong types)
+PASS C.33 items -> 422 validation_failed (or 400 for wrong types)
+PASS C.non-object item -> 422 validation_failed (or 400 for wrong types)
+PASS C.dup ids -> 422 validation_failed (or 400 for wrong types)
+PASS C.32 distinct items accepted
+PASS C.item amount='-1' -> 422 validation_failed
+PASS C.item amount='1.5' -> 422 validation_failed
+PASS C.item amount='5' -> 422 validation_failed
+PASS C.item amount='1000000001' -> 422 validation_failed
+PASS C.item amount='None' -> 422 validation_failed
+PASS C.item expected_revision='0' -> 422 validation_failed
+PASS C.item expected_revision='1' -> 422 validation_failed
+PASS C.item expected_revision='1.5' -> 422 validation_failed
+PASS C.item effective_at='garbage' -> 422 validation_failed
+PASS C.item effective_at='2026-10-06T00:35:18.' -> 422 validation_failed
+PASS C.item effective_at='2026-10-05T10:00:00' -> 422 validation_failed
+PASS C.item reason='' -> 422 validation_failed
+PASS C.item reason='xxxxxxxxxxxxxxxxxxxx' -> 422 validation_failed
+PASS C.item reason='5' -> 422 validation_failed
+PASS C.item reason='None' -> 422 validation_failed
+PASS C.item missing payment_id -> 422 (404 for missing payment_id)
+PASS C.item missing expected_revision -> 422 (404 for missing payment_id)
+PASS C.item missing amount -> 422 (404 for missing payment_id)
+PASS C.item missing effective_at -> 422 (404 for missing payment_id)
+PASS C.item missing reason -> 422 (404 for missing payment_id)
+PASS C.unknown payment -> 404
+PASS C.stale expected revision -> 409 stale_revision
+PASS C.reason of 200 code points ok
+PASS C.unknown item fields ignored
+PASS C.unknown top-level fields ignored
+PASS C.batch containing a refund -> 422 linked_payment_immutable
+PASS C.batch containing a capture -> 422 linked_payment_immutable
+PASS C.batch floor: amount 5 below the refunded 10 -> 422 refund_exceeds_payment
+PASS C.…amount equal to the refunded total ok
+PASS C.item errors in input order: [404, stale] -> 404
+PASS C.item errors in input order: [stale, 404] -> 409 stale_revision
+   INFO [valid, invalid reason, unknown] -> 422 validation_failed
+PASS C.single correction of a settlement member -> 422 linked_payment_immutable (stage 4: ordinary corrections remain for nonmembers only)
+PASS C.partial settlement set -> 422 incomplete_settlement
+PASS C.still incomplete (2 of 3) -> 422 incomplete_settlement
+PASS C.members with instants differing by 1 µs -> 422 validation_failed
+PASS C.same instant spelled with different offsets -> accepted (201), spellings echoed as given
+PASS C.members in any order, second batch on the same settlement ok
+PASS C.settlement receipt replay unchanged after batches (original body)
+PASS C.settlement retry after its members were corrected returns the ORIGINAL body (200)
+PASS C.statement shows the settlement members with their selected revision and settlement_id intact
+PASS C.operator corrects a request payment and someone else's direct payment in one batch
+PASS C.no-change item (same amount, new effective time) creates a revision
+PASS C.setup: single correction +1000 individually unaffordable (409 insufficient_funds)
+PASS C.setup: the mirror correction also individually unaffordable
+PASS C.individually unaffordable corrections that net to zero per wallet are affordable together -> 201
+PASS C.…balances unchanged (net zero)
+PASS C.combined effect still unaffordable (ada net -900 > available... ) -> 409 insufficient_funds or ok per arithmetic
+   INFO combined unaffordable: 201 None
+PASS C.single-item batch needing more than available -> 409 insufficient_funds, history/balances unchanged
+PASS C.incomplete_settlement takes precedence over insufficient_funds
+PASS C.differing instants (422) takes precedence over insufficient_funds
+   INFO members 900/100 same instant: ada gets +800 from op: op total 800 available.. -> 422 validation_failed
+PASS C.batch moving a credit after the debit it funds -> 409 historical_overdraft
+PASS C.…rejected batch changed nothing (revisions, balances)
+PASS C.failed batch key is reusable (same key, valid body -> 201)
+PASS C.batch making AVAILABLE negative at a hold-creation boundary -> 409 historical_overdraft
+PASS C.batch of zero-amount reversals moving everything an hour earlier: 201
+PASS C.earlier snapshot pages byte-identical after the batch
+PASS C.new statement reflects the batch (zero entries with revision 2, correction effective instants)
+PASS C.every historical view still sums to the seeded total
+PASS C.10-item batch: one shared recorded_at
+PASS C.known_at 1µs before the batch selects all old revisions, at recorded_at selects all new ones (atomic visibility)
+== D G_snapshot_import
+PASS D.stage-1 export imports into stage 4
+PASS D.stage-1 settlement members are correctable together by batch after import (membership retained)
+PASS D.…and a partial set is incomplete_settlement (membership retained)
+PASS D.imported stage-1 payment refundable
+PASS D.imported stage-1 settlement replay 200 original
+PASS D.stage-2 export imports into stage 4
+PASS D.imported capture refundable (201); capture correction/batch immutable
+PASS D.imported hold states: open remainder 200 held
+   INFO stage-3 export top-level state keys: ['currency', 'minor_units', 'authorization_ttl_seconds', 'seq', 'users', 'tokens', 'settlement_operator_ids', 'payments', 'requests', 'splits', 'settlements', 'authorizations', 'idempotency']
+   INFO stage-3 snapshot token present in its export text: False
+PASS D.IM4-30 claim verified: the FROZEN stage-3 export contains NO snapshot data (token not in the export; no snapshot-like keys)
+PASS D.stage-3 export (with a correction and a settlement) imports into stage 4
+   INFO stage-3-minted token on stage 4 after import -> 404
+PASS D.a snapshot token minted by the frozen stage-3 service cannot be restored (404, no 5xx) - nothing to restore from
+PASS D.imported stage-3 corrected payment: batch with its current revision works
+PASS D.imported stage-3 settlement members correctable together by batch
+   INFO stage-4 export 14 KB; token present: True
+PASS D.stage-4 export contains the snapshot tokens
+PASS D.stage-4 export imports into another process
+PASS D.every snapshot token pages byte-identically on the destination after import
+PASS D.later writes (payment, correction, refund, batch) on the destination never leak into imported snapshots
+PASS D.imported tokens remain user-scoped (other user 404) and unknown tokens 404
+PASS D.new snapshots minted on the destination do not collide with imported ones
+PASS D.imported token + from -> 422
+PASS D.export -> import -> export is byte-stable (B -> A)
+PASS D.after import new payments get created_at strictly after every imported instant
+   INFO stage-4 state keys: ['currency', 'minor_units', 'authorization_ttl_seconds', 'seq', 'users', 'tokens', 'settlement_operator_ids', 'payments', 'requests', 'splits', 'settlements', 'authorizations', 'idempotency', 'snapshots']
+   INFO snapshot key(s): ['snapshots']
+   INFO tamper balance+1 -> 422
+PASS D.tampered import (balance+1): never 5xx; 4xx leaves state unchanged
+   INFO tamper null payments -> 422
+PASS D.tampered import (null payments): never 5xx; 4xx leaves state unchanged
+   INFO tamper drop users -> 422
+PASS D.tampered import (drop users): never 5xx; 4xx leaves state unchanged
+   INFO tamper negative balance -> 422
+PASS D.tampered import (negative balance): never 5xx; 4xx leaves state unchanged
+   INFO tamper snapshots null -> 422
+PASS D.tampered import (snapshots null): never 5xx; 4xx leaves state unchanged
+   INFO tamper snapshots object -> 422
+PASS D.tampered import (snapshots object): never 5xx; 4xx leaves state unchanged
+   INFO tamper snapshots string -> 422
+PASS D.tampered import (snapshots string): never 5xx; 4xx leaves state unchanged
+   INFO tamper snapshot unknown user_id -> 422
+PASS D.tampered import (snapshot unknown user_id): never 5xx; 4xx leaves state unchanged
+   INFO tamper snapshot garbage known_at_us -> 422
+PASS D.tampered import (snapshot garbage known_at_us): never 5xx; 4xx leaves state unchanged
+   INFO tamper snapshot garbage from_us -> 422
+PASS D.tampered import (snapshot garbage from_us): never 5xx; 4xx leaves state unchanged
+   INFO tamper snapshot garbage to_us -> 422
+PASS D.tampered import (snapshot garbage to_us): never 5xx; 4xx leaves state unchanged
+   INFO tamper snapshot missing token -> 422
+PASS D.tampered import (snapshot missing token): never 5xx; 4xx leaves state unchanged
+   INFO tamper snapshot missing user_id -> 422
+PASS D.tampered import (snapshot missing user_id): never 5xx; 4xx leaves state unchanged
+   INFO tamper snapshot empty token -> 422
+PASS D.tampered import (snapshot empty token): never 5xx; 4xx leaves state unchanged
+   INFO tamper snapshot numeric token -> 422
+PASS D.tampered import (snapshot numeric token): never 5xx; 4xx leaves state unchanged
+   INFO tamper snapshot known_at_us in year 2099 (would push the clock) -> 204
+PASS D.tampered import (snapshot known_at_us in year 2099 (would push the clock)): never 5xx; 4xx leaves state unchanged
+   INFO tamper snapshot known_at_us before epoch -> 204
+PASS D.tampered import (snapshot known_at_us before epoch): never 5xx; 4xx leaves state unchanged
+   INFO tamper duplicate snapshot token -> 422
+PASS D.tampered import (duplicate snapshot token): never 5xx; 4xx leaves state unchanged
+   INFO tamper snapshot extra fields -> 204
+PASS D.tampered import (snapshot extra fields): never 5xx; 4xx leaves state unchanged
+PASS D.unparseable import -> 400
+
+204 passed, 0 failed

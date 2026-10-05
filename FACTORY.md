@@ -82,14 +82,14 @@ pointed that out, and the coordinator relayed the report). In round 2 the same h
 accepted stage 3 on the confirmed fixes (human input #5) and the gate then issued its formal verdict. One low finding remains (paging a
 very old snapshot recomputes the view and slows at very large histories).
 
-### Stage 4 at submission close (included, review not finished)
+### Stage 4 (accepted by the gate in round 1)
 
-The analyst committed the stage-4 matrix and checks (`589e5f2`) and the builder committed refunds,
-correction batches and snapshots across import (`7cd430a`). An isolated harness run on a fresh clone at
-01:22 CDT reports stages 1–4 pass and `claimed stage: 4`. The coordinator handed it to the adversary
-and gate (`f89e4ea`). The gate's own checks all passed and it issued a PROVISIONAL ACCEPT (`f89a76e`,
-`evidence/stage-4/`), pending the adversary's report, which becomes final or turns into a REJECT when
-that report arrives. Read stage 4 as provisionally accepted.
+The analyst committed the stage-4 matrix and checks (`589e5f2`); the builder committed refunds,
+correction batches and snapshots across import (`7cd430a`). The gate's own checks passed and it held a
+provisional verdict (`f89a76e`) until the adversary's report arrived (`202894b`): its oracle found
+**0 failures in 59,610 comparisons** of refunds and batches. The gate reproduced the two low findings,
+recorded them as non-blocking follow-ups, and issued its final ACCEPT (`eeea755`,
+`evidence/stage-4/verdict-final.md`). The coordinator closed the run: all four stages accepted.
 
 ## 5. What we tried that failed, and what we changed
 
@@ -156,7 +156,7 @@ Time (CDT, Oct 4 to 5), excluding the usage-limit stall from 03:29 to 13:12:
 | Stage 1 build → round 3 ACCEPT | 13:12 → 15:21 (2 h 9 min, 2 rejections) |
 | Stage 2 analysis → ACCEPT | 15:21 → 17:01 (1 h 40 min, 0 rejections) |
 | Stage 3 analysis → ACCEPT | 21:13 → 00:59 (1 rejection; includes ~1.5 h of stalls on a hung seat turn) |
-| Stage 4 analysis → build → gate provisional ACCEPT | 00:59 → 01:32 (33 min) |
+| Stage 4 analysis → build → gate provisional ACCEPT → final ACCEPT | 00:59 → 01:32; final verdict after the adversary's report (laptop slept in between) |
 
 ## 8. Evidence map
 
@@ -164,7 +164,7 @@ Time (CDT, Oct 4 to 5), excluding the usage-limit stall from 03:29 to 13:12:
 |---|---|
 | Five distinct seats did the work | reciprocal `@handle` exchanges in `room.json`; commits authored per seat (`git shortlog -sn`) |
 | Review changed the work | G1–G3 and H1 above: adversary report → gate reproduction → builder fix commit |
-| The gate accepted exactly what ships | `evidence/stage-1/verdict*.md`, `evidence/stage-2/verdict.md`, `evidence/stage-3/verdict*.md` name the full revision; stage 4's provisional verdict is in `evidence/stage-4/verdict.md` |
+| The gate accepted exactly what ships | `evidence/stage-1/verdict*.md`, `evidence/stage-2/verdict.md`, `evidence/stage-3/verdict*.md` name the full revision; stage 4's final verdict is `evidence/stage-4/verdict-final.md` |
 | The gate waited for the adversary | verdicts cite the adversary report on the same revision; gate "waiting for adversary" messages in the room |
 | Stages reproduce from a clean clone | fresh GitHub clone, isolated harness: `stage-1/`…`stage-4/` each claim their stage; every stage serves `/health` with `--network none` (`evidence/final-check/`) |
 | Costs are measured | §7 |
@@ -175,4 +175,4 @@ Time (CDT, Oct 4 to 5), excluding the usage-limit stall from 03:29 to 13:12:
 - Kickoff repository: `band-ai/dark-factory-wearedevs` @ `803560d`; harness from the same checkout
 - Band Desktop / CLI 0.4.12, Claude Code CLI 2.1.286, Docker 29.1.3, macOS 26 on Apple silicon
 - Submitted run: dispatched 2026-10-04 08:04 UTC in a fresh room and fresh repository
-- Accepted commits: stage 1 `621342c`, stage 2 `92bbbf9`, stage 3 `c5b8629`; stage 4 `7cd430a` (gate provisional ACCEPT)
+- Accepted commits: stage 1 `621342c`, stage 2 `92bbbf9`, stage 3 `c5b8629`, stage 4 `7cd430a`

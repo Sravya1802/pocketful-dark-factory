@@ -29,7 +29,7 @@ The app above is exactly what the band built (`stage-4/`), shown with synthetic 
    | 1 | `stage-1/` | `621342c` | gate ACCEPT after 2 real rejections | claims stage 1 |
    | 2 | `stage-2/` | `92bbbf9` | gate ACCEPT first time | claims stage 2 |
    | 3 | `stage-3/` | `c5b8629` | gate ACCEPT after 1 real rejection (`8737866`) | claims stage 3 |
-   | 4 | `stage-4/` | `7cd430a` | gate PROVISIONAL ACCEPT, adversary report pending at time of writing | claims stage 4 |
+   | 4 | `stage-4/` | `7cd430a` | gate ACCEPT first time (`eeea755`) | claims stage 4 |
 
 3. **Verify it yourself** (from the kickoff checkout `band-ai/dark-factory-wearedevs`):
    ```sh
@@ -79,7 +79,8 @@ and a reproduction script, and the fix comes back through the room. Details, cos
 | 3 | Valid RFC 3339 forms (lowercase `t`/`z`, leap second) rejected | REJECT, fixed, ACCEPT |
 
 Before any stage-3 fix, the adversary's oracle fuzz found **0 mismatches in ~94,000 randomized
-comparisons** of the corrected ledger.
+comparisons** of the corrected ledger. In stage 4 the oracle covered refunds and batch corrections:
+**0 failures in 59,610 comparisons**.
 
 ## Where the evidence is
 
@@ -96,6 +97,5 @@ comparisons** of the corrected ledger.
 - **Five human messages in the room**: the dispatch, three factual resume notes (Claude usage limits
   stopped seats; a seat ended its turn without its handoff), and one owner note accepting stage 3.
   None steered the work; every rejection and fix came from the seats. See FACTORY.md §6.
-- **Stage 4** has the gate's provisional ACCEPT; the adversary's report was still pending when this
-  was written.
+- Two low findings are recorded as non-blocking follow-ups in the gate's verdicts (old-snapshot paging slows at very large histories; an import can carry an impossible future snapshot time).
 - `factory/scripts/load-demo-data.py` and the screenshots use synthetic data only: fictional users, no real money.
