@@ -1,0 +1,61 @@
+
+== 1. fresh clone
+  PASS cloned into /var/folders/w3/qygv18fj5q36t_9_sqv__bj80000gn/T//final-check.K374oG/repo
+
+== 2. harness check (gates 1, 2, mandate half of 4, credentials)
+ok — gates 1, 2 and the mandate part of gate 4 pass. Not checked here: gate 3 (stage-1/ builds and serves /health). Run: python -m harness run --track pocketful --repo /var/folders/w3/qygv18fj5q36t_9_sqv__bj80000gn/T//final-check.K374oG/repo --stage 1 --mode isolated
+  PASS harness check
+
+== 3. mandates: both tracks' vocabulary, harness/model lines, track-revealing words
+  PASS no vocabulary hits in any track list
+
+== 4. extra credential scan
+  FAIL possible credential (run: grep -rInE 'sk-ant-|API_KEY=' on the clone)
+
+== 5. repository hygiene
+  PASS no submodules
+  PASS no symlinks
+  PASS stage-1 has Dockerfile and RUN.md
+  PASS stage-2 has Dockerfile and RUN.md
+  PASS stage-3 has Dockerfile and RUN.md
+  PASS stage-4 has Dockerfile and RUN.md
+  PASS README.md present
+  PASS FACTORY.md present
+  PASS room.json present
+
+== 6. remote assets in product code (must ship inside the image)
+  PASS no remote asset references
+
+== 7. per stage: docker build, run with --network none, /health within 60s
+  PASS stage-1 healthy with no network (/Users/lakshmisravyarachakonda/darkfactory/band-work/final-evidence/no-network-stage-1.log)
+  PASS stage-2 healthy with no network (/Users/lakshmisravyarachakonda/darkfactory/band-work/final-evidence/no-network-stage-2.log)
+  PASS stage-3 healthy with no network (/Users/lakshmisravyarachakonda/darkfactory/band-work/final-evidence/no-network-stage-3.log)
+  PASS stage-4 healthy with no network (/Users/lakshmisravyarachakonda/darkfactory/band-work/final-evidence/no-network-stage-4.log)
+
+== 8. harness run --all --mode isolated (the graded mode)
+building upgrade source /var/folders/w3/qygv18fj5q36t_9_sqv__bj80000gn/T/final-check.K374oG/repo/stage-1 ...
+  stage 2: pass  (log: /Users/lakshmisravyarachakonda/VS CODE/Hackathons/bands/band-work/checks/final-20261005-183212/stage-4/stage-2.log)
+building upgrade source /var/folders/w3/qygv18fj5q36t_9_sqv__bj80000gn/T/final-check.K374oG/repo/stage-2 ...
+  stage 3: pass  (log: /Users/lakshmisravyarachakonda/VS CODE/Hackathons/bands/band-work/checks/final-20261005-183212/stage-4/stage-3.log)
+building upgrade source /var/folders/w3/qygv18fj5q36t_9_sqv__bj80000gn/T/final-check.K374oG/repo/stage-3 ...
+  stage 4: pass  (log: /Users/lakshmisravyarachakonda/VS CODE/Hackathons/bands/band-work/checks/final-20261005-183212/stage-4/stage-4.log)
+highest contiguous stage: 4
+claimed stage: 4 on the shipped checks
+report: /Users/lakshmisravyarachakonda/VS CODE/Hackathons/bands/band-work/checks/final-20261005-183212/stage-4/report.json
+  stage-1/: claims stage 1 on the shipped checks
+  stage-2/: claims stage 2 on the shipped checks
+  stage-3/: claims stage 3 on the shipped checks
+  stage-4/: claims stage 4 on the shipped checks
+summary: /Users/lakshmisravyarachakonda/VS CODE/Hackathons/bands/band-work/checks/final-20261005-183212/summary.json
+NOTE: this run only includes a portion of the full tests that are applied before judging; this is meant to provide directional feedback, and ultimately you may not pass the stage with the full set of tests.
+  PASS harness run finished (read the claimed-stage lines above)
+
+== 9. manual items (no script can do these)
+  - follow each stage's RUN.md by hand in a clean environment and use the UI
+  - read room.json: reciprocal @handle exchange present, no rewritten history
+  - video contains the BAND room recording; evidence map timestamps filled
+  - re-read every mandate: would a team building something else use it as is?
+
+== result
+BLOCKING FAILURES ABOVE
+clone: /var/folders/w3/qygv18fj5q36t_9_sqv__bj80000gn/T//final-check.K374oG/repo   evidence: /Users/lakshmisravyarachakonda/darkfactory/band-work/final-evidence

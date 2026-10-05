@@ -48,7 +48,7 @@ PY
 [ $? -eq 0 ] && pass "no vocabulary hits in any track list" || fail "mandate vocabulary"
 
 step "4. extra credential scan"
-if grep -rInE --exclude-dir=.git 'sk-ant-[A-Za-z0-9_-]{10,}|FEATHERLESS_API_KEY=[^ ]+|ANTHROPIC_API_KEY=[^ ]+|rc_[A-Za-z0-9]{20,}' "$CLONE" >/dev/null; then
+if grep -rInE --exclude-dir=.git --exclude=final-check.sh 'sk-ant-[A-Za-z0-9_-]{10,}|FEATHERLESS_API_KEY=[^ ]+|ANTHROPIC_API_KEY=[^ ]+|rc_[A-Za-z0-9]{20,}' "$CLONE" >/dev/null; then
   fail "possible credential (run: grep -rInE 'sk-ant-|API_KEY=' on the clone)"; else pass "no extra credential shapes"; fi
 
 step "5. repository hygiene"
