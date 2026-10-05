@@ -66,17 +66,20 @@ Non-blocking findings were recorded, not hidden: shared salt for identical seede
 anyway in `621342c`), a silent failed Refresh and Accept q-values on stage 2 (follow-ups in
 `evidence/stage-2/verdict.md`).
 
-### Stage 3 at submission close (not submitted)
+### Stage 3 (round 2 accepted by the human owner; no formal gate verdict)
 
-The band built stage 3 (`959960c`: statements, corrections, historical balances). The analyst's
-110 stage-3 checks passed, and the adversary's oracle fuzz found **0 mismatches in ~94,000
-comparisons** of the corrected ledger. It also found a real defect: statement snapshots retain
-memory per snapshot until the service dies (S3-1, medium), plus two low ones (an expired seeded
-hold viewed historically, RFC 3339 lowercase `t`/`z` and leap seconds). Those findings would have
-blocked acceptance. The adversary committed its report (`af638e1`) but its turn ended without
-messaging the gate, so no verdict was issued before submissions closed. Because stage 3 was never
-accepted, `stage-3/` is not in this repository; its evidence is in `evidence/stage-3/` of the
-band's working history.
+| # | Defect | Caught by | Confirmed by | Fixed in |
+|---|---|---|---|---|
+| K1 | Statement snapshots retained memory per snapshot until the service died | adversary S3-1 | gate, reproduced | `c5b8629` |
+| K2 | A seeded expired hold with a future expiry disagreed between historical and current views | adversary S3-2 | gate, reproduced | `c5b8629` |
+| K3 | RFC 3339 lowercase `t`/`z` and leap seconds rejected | adversary S3-3 | gate, reproduced | `c5b8629` |
+
+Before any fix, the adversary's oracle fuzz found 0 mismatches in ~94,000 comparisons of the
+corrected ledger. The adversary's round-2 report (`6f62bfe`) confirmed K1–K3 fixed; the gate's own round-2 checks were
+green and it was waiting for that report. The adversary's turn again ended without messaging the gate,
+so no formal round-2 verdict exists. As the human owner I accepted `c5b8629` on that evidence plus an
+isolated harness run on a fresh clone (`stage-3/` claims stage 3). One low finding remains (paging a
+very old snapshot recomputes the view and slows at very large histories).
 
 ## 5. What we tried that failed, and what we changed
 
@@ -147,7 +150,7 @@ Time (CDT, Oct 4), excluding the usage-limit stall from 03:29 to 13:12:
 | Review changed the work | G1–G3 and H1 above: adversary report → gate reproduction → builder fix commit |
 | The gate accepted exactly what ships | `evidence/stage-1/verdict*.md`, `evidence/stage-2/verdict.md` name the full revision |
 | The gate waited for the adversary | verdicts cite the adversary report on the same revision; gate "waiting for adversary" messages in the room |
-| Stages reproduce from a clean clone | isolated harness on a fresh clone: `stage-1/` claims 1, `stage-2/` claims 2 |
+| Stages reproduce from a clean clone | isolated harness on a fresh clone: `stage-1/` claims 1, `stage-2/` claims 2, `stage-3/` claims 3 |
 | Costs are measured | §7 |
 | Mandates are generic | no track vocabulary in `mandates/` (checked against all three track lists) |
 
@@ -156,4 +159,4 @@ Time (CDT, Oct 4), excluding the usage-limit stall from 03:29 to 13:12:
 - Kickoff repository: `band-ai/dark-factory-wearedevs` @ `803560d`; harness from the same checkout
 - Band Desktop / CLI 0.4.12, Claude Code CLI 2.1.286, Docker 29.1.3, macOS 26 on Apple silicon
 - Submitted run: dispatched 2026-10-04 08:04 UTC in a fresh room and fresh repository
-- Accepted commits: stage 1 `621342c`, stage 2 `92bbbf9`
+- Accepted commits: stage 1 `621342c`, stage 2 `92bbbf9`, stage 3 `c5b8629`

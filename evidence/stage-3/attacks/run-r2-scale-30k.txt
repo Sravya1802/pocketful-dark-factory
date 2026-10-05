@@ -1,0 +1,16 @@
+fixture 7.1 MB, 30000 payments
+reset 204 0.2s mem 76.17MiB / 2GiB
+PASS reset within 10s
+  cycle 0: correction 201 0.035s, statement 200 0.012s, snapshots 1, mem 83.95MiB / 2GiB
+  cycle 120: correction 201 0.005s, statement 200 0.008s, snapshots 121, mem 85.53MiB / 2GiB
+  cycle 240: correction 201 0.005s, statement 200 0.004s, snapshots 241, mem 86.25MiB / 2GiB
+  cycle 360: correction 201 0.006s, statement 200 0.009s, snapshots 361, mem 85.72MiB / 2GiB
+  cycle 480: correction 201 0.006s, statement 200 0.009s, snapshots 481, mem 85.98MiB / 2GiB
+PASS 600 corrections each < 5s (max 0.03s, avg 0.005s)
+PASS 600 first statement reads each < 5s (max 0.03s, avg 0.007s)
+final memory 85.3MiB / 2GiB
+PASS memory < 1.5 GiB with all snapshots alive
+PASS oldest snapshot still pages (frozen before 90% of the corrections)
+export 14.0 MB 0.2s mem 100.1MiB / 2GiB
+PASS export < 10s
+ALL PASS

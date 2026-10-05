@@ -1,0 +1,5 @@
+current /me: {'total': 10000, 'available': 10000, 'held': 0}
+as_of now-1s: {'total': 10000, 'available': 10000, 'held': 0}
+as_of now-10us: {'total': 10000, 'available': 9700, 'held': 300}
+as_of now+1h: {'total': 10000, 'available': 9700, 'held': 300}
+FAIL: historical view just before now disagrees with the current view (hold of status 'expired' still held until its future expires_at)
