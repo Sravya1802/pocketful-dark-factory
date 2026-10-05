@@ -17,12 +17,10 @@ Track: **pocketful** · Team: Sravya Rachakonda (solo) · WeAreDevelopers x BAND
    |---|---|---|---|---|
    | 1 | `stage-1/` | `621342c` | 3 (2 real rejections) | claims stage 1 |
    | 2 | `stage-2/` | `92bbbf9` | 1 | claims stage 2 |
-   | 3 | `stage-3/` | `c5b8629` | 2 (1 real rejection; see note) | claims stage 3 |
+   | 3 | `stage-3/` | `c5b8629` | 2 (1 real rejection) | claims stage 3 |
 
-   Stage 3 note: the gate rejected round 1 (K1–K3); the adversary's round-2 report confirmed all three
-   fixed, but its turn ended without messaging the gate, so no formal round-2 verdict was issued before
-   close. I accepted it as the human owner on that evidence plus the isolated harness (FACTORY.md §4).
-   Stage 4 was not started.
+   Stage 3: the gate rejected round 1 (K1–K3) and accepted round 2 (`8737866`). Stage 4 was started
+   but not finished before submissions closed.
 
 3. **Run it.** Each folder has a `Dockerfile` and `RUN.md`. For example:
    ```sh

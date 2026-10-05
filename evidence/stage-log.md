@@ -46,3 +46,10 @@ Run start: 2026-10-04 03:10 PDT-local (host TZ; see `date` below)
 - builder delivered rework 1 rev c5b8629 (fixes K1-K3; self-reported API 388/388, UI 99/99, shipped 6/6) 23:39:35 CDT
 - handoff coordinator -> adversary and gate, stage 3 re-verify, rev c5b8629, 23:39:35 CDT
 - adversary replied 'already handled' to round-2 handoff (stale reading); resent once with clarification 00:26:28 CDT
+- adversary round-2 report committed 6f62bfe (confirms K1-K3 fixed on c5b8629); gate's own round-2 checks green (status message), but gate issued no verdict-r2 (adversary turn ended without messaging gate). 00:59:12 CDT
+- STAGE 3 ACCEPTED BY OWNER DECISION (human input #5), NOT by a gate verdict: revision c5b8629dc841321fe4653356822b3b7eb9a3f4ec. Rework loops: 1 (gate REJECT 959960c, K1-K3). Gate asked afterwards to write verdict-r2 for the record. 2026-10-05 00:59:12 CDT
+
+## Stage 4
+- start 2026-10-05 00:59:12 CDT; stage-4/ created as copy of owner-accepted stage-3/ (no .git inside)
+- handoff coordinator -> analyst, stage 4 requirements, rev b20fbc7, 00:59:13 CDT
+- verdict gate ACCEPT rev c5b8629 (verdict-r2.md commit 8737866; cites adversary r2 report 6f62bfe, same rev). Stage 3 now has a gate acceptance in addition to the owner decision. Rework loops: 1. Low carry-over R2-1: old-snapshot paging latency grows with history (2.8s at 60k payments x50 concurrent; 4.3s@100k, 8.9s@150k per adversary). 2026-10-05 00:59:35 CDT

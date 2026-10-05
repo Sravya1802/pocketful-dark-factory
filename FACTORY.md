@@ -66,7 +66,7 @@ Non-blocking findings were recorded, not hidden: shared salt for identical seede
 anyway in `621342c`), a silent failed Refresh and Accept q-values on stage 2 (follow-ups in
 `evidence/stage-2/verdict.md`).
 
-### Stage 3 (round 2 accepted by the human owner; no formal gate verdict)
+### Stage 3 (rejected in round 1, accepted by the gate in round 2)
 
 | # | Defect | Caught by | Confirmed by | Fixed in |
 |---|---|---|---|---|
@@ -75,10 +75,9 @@ anyway in `621342c`), a silent failed Refresh and Accept q-values on stage 2 (fo
 | K3 | RFC 3339 lowercase `t`/`z` and leap seconds rejected | adversary S3-3 | gate, reproduced | `c5b8629` |
 
 Before any fix, the adversary's oracle fuzz found 0 mismatches in ~94,000 comparisons of the
-corrected ledger. The adversary's round-2 report (`6f62bfe`) confirmed K1–K3 fixed; the gate's own round-2 checks were
-green and it was waiting for that report. The adversary's turn again ended without messaging the gate,
-so no formal round-2 verdict exists. As the human owner I accepted `c5b8629` on that evidence plus an
-isolated harness run on a fresh clone (`stage-3/` claims stage 3). One low finding remains (paging a
+corrected ledger. The adversary's round-2 report (`6f62bfe`) confirmed K1–K3 fixed, and the gate's round-2 verdict
+(`8737866`) ACCEPTED `c5b8629`. The adversary's turn had ended without messaging the gate, so the
+owner sent a factual note (human input #5); the gate then issued its verdict. One low finding remains (paging a
 very old snapshot recomputes the view and slows at very large histories).
 
 ## 5. What we tried that failed, and what we changed
@@ -100,7 +99,7 @@ very old snapshot recomputes the view and slows at very large histories).
 
 ## 6. Human input in the submitted run (disclosed)
 
-The room holds four human messages:
+The room holds five human messages:
 1. The dispatch (the task, all four stages).
 2. 13:12 CDT Oct 4: a factual resume note. The builder had stopped on a Claude usage limit 25 minutes
    after the dispatch; the limit reset, but nothing re-woke the seat. Wording: the seat stopped on a
@@ -108,6 +107,9 @@ The room holds four human messages:
 3. 21:13 CDT Oct 4: the same note after the analyst stopped on a usage limit during stage 3.
 4. 23:17 CDT Oct 4: a note that the adversary had committed its stage-3 report but its turn ended
    without messaging the gate, so the gate was still waiting.
+
+5. 00:58 CDT Oct 5: an owner note accepting stage 3 on the adversary's confirmed fixes and asking
+   the coordinator to continue to stage 4 (the gate's formal ACCEPT followed).
 
 One operator action outside the room: at 00:07 CDT Oct 5 the adversary's runtime turn was hung with
 three messages queued behind it, and was interrupted with `band runtime interrupt` (no message, no
