@@ -80,6 +80,14 @@ corrected ledger. The adversary's round-2 report (`6f62bfe`) confirmed K1–K3 f
 owner sent a factual note (human input #5); the gate then issued its verdict. One low finding remains (paging a
 very old snapshot recomputes the view and slows at very large histories).
 
+### Stage 4 at submission close (included, review not finished)
+
+The analyst committed the stage-4 matrix and checks (`589e5f2`) and the builder committed refunds,
+correction batches and snapshots across import (`7cd430a`). An isolated harness run on a fresh clone at
+01:22 CDT reports stages 1–4 pass and `claimed stage: 4`. The coordinator handed it to the adversary
+and gate (`f89e4ea`), but their review had not finished when submissions closed, so stage 4 has no
+gate verdict. It is included at the owner's decision and should be read as unreviewed.
+
 ## 5. What we tried that failed, and what we changed
 
 - **Toy rehearsal (4/4 stages, 1 real rework).** The gate ruled before the adversary reported in 4 of
@@ -161,4 +169,4 @@ Time (CDT, Oct 4), excluding the usage-limit stall from 03:29 to 13:12:
 - Kickoff repository: `band-ai/dark-factory-wearedevs` @ `803560d`; harness from the same checkout
 - Band Desktop / CLI 0.4.12, Claude Code CLI 2.1.286, Docker 29.1.3, macOS 26 on Apple silicon
 - Submitted run: dispatched 2026-10-04 08:04 UTC in a fresh room and fresh repository
-- Accepted commits: stage 1 `621342c`, stage 2 `92bbbf9`, stage 3 `c5b8629`
+- Accepted commits: stage 1 `621342c`, stage 2 `92bbbf9`, stage 3 `c5b8629`; stage 4 `7cd430a` (unreviewed)

@@ -18,9 +18,10 @@ Track: **pocketful** · Team: Sravya Rachakonda (solo) · WeAreDevelopers x BAND
    | 1 | `stage-1/` | `621342c` | 3 (2 real rejections) | claims stage 1 |
    | 2 | `stage-2/` | `92bbbf9` | 1 | claims stage 2 |
    | 3 | `stage-3/` | `c5b8629` | 2 (1 real rejection) | claims stage 3 |
+   | 4 | `stage-4/` | `7cd430a` | 1 (review in progress at close) | claims stage 4 |
 
-   Stage 3: the gate rejected round 1 (K1–K3) and accepted round 2 (`8737866`). Stage 4 was started
-   but not finished before submissions closed.
+   Stage 3: the gate rejected round 1 (K1–K3) and accepted round 2 (`8737866`). Stage 4 was built by the band and
+   passes the harness, but the adversary and gate review was still running when submissions closed.
 
 3. **Run it.** Each folder has a `Dockerfile` and `RUN.md`. For example:
    ```sh
@@ -36,5 +37,5 @@ Track: **pocketful** · Team: Sravya Rachakonda (solo) · WeAreDevelopers x BAND
    - `FACTORY.md`: setup, design, measured cost, mistakes caught, honest limitations
    - `factory/`: the dispatch message and the operator scripts used around the run
 5. **Video.** See the lablab submission.
-6. **Known limitations.** Three stages of four. Four human messages in the room: the dispatch
+6. **Known limitations.** Four stages of four (stage 4 not yet reviewed by the adversary and gate). Four human messages in the room: the dispatch
    and three factual resume notes (usage limits, a missed handoff) (details in FACTORY.md §6).

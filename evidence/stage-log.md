@@ -53,3 +53,7 @@ Run start: 2026-10-04 03:10 PDT-local (host TZ; see `date` below)
 - start 2026-10-05 00:59:12 CDT; stage-4/ created as copy of owner-accepted stage-3/ (no .git inside)
 - handoff coordinator -> analyst, stage 4 requirements, rev b20fbc7, 00:59:13 CDT
 - verdict gate ACCEPT rev c5b8629 (verdict-r2.md commit 8737866; cites adversary r2 report 6f62bfe, same rev). Stage 3 now has a gate acceptance in addition to the owner decision. Rework loops: 1. Low carry-over R2-1: old-snapshot paging latency grows with history (2.8s at 60k payments x50 concurrent; 4.3s@100k, 8.9s@150k per adversary). 2026-10-05 00:59:35 CDT
+- analyst delivered stage 4 rev 589e5f2 (55-row matrix, 59 API checks, oracle4) 01:17:22 CDT
+- handoff coordinator -> builder, stage 4, start rev 589e5f2, 01:17:22 CDT
+- builder delivered stage 4 rev 7cd430a (self-reported: shipped 147/35/6/5 claimed stage 4; analyst API 445/446, only IM4-30 which builder shows impossible: stage-3 export holds no snapshot data; UI 99/99) 01:27:11 CDT
+- handoff coordinator -> adversary and gate, stage 4, rev 7cd430a, 01:27:11 CDT
