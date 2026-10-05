@@ -6,9 +6,9 @@
 const crypto = require('crypto');
 const { JNum, intValue, digestCanonical, DIGEST_PREFIX } = require('./json');
 const { isValidHash } = require('./passwords');
+const { now, nowUs, parseInstant } = require('./time');
 
 const HANDLE_RE = /^[a-z0-9_]{1,20}$/;
-const RFC3339_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$/;
 const STATUSES = ['pending', 'paid', 'declined', 'cancelled'];
 const AUTH_STATUSES = ['open', 'captured', 'voided', 'expired'];
 const DEFAULT_TTL = 600n;
@@ -24,30 +24,10 @@ class StateError extends Error {
   }
 }
 
-function pad(n, w = 2) {
-  return String(n).padStart(w, '0');
-}
-
-let lastMs = 0;
-function now() {
-  let ms = Date.now();
-  if (ms < lastMs) ms = lastMs;
-  lastMs = ms;
-  return stampAt(ms);
-}
-
-function stampAt(ms) {
-  const d = new Date(ms);
-  const iso = d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()) + 'T'
-    + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds()) + '.'
-    + pad(d.getUTCMilliseconds(), 3) + '+00:00';
-  return { ms, iso };
-}
-
+// A stored instant: its text as given and its microsecond value.
 function parseStamp(s) {
-  if (typeof s !== 'string' || !RFC3339_RE.test(s)) return null;
-  const ms = Date.parse(s);
-  return Number.isFinite(ms) ? { ms, iso: s } : null;
+  const t = parseInstant(s);
+  return t ? { us: t.us, iso: s } : null;
 }
 
 function codePoints(s) {
@@ -73,6 +53,7 @@ class State {
     this.authorizations = new Map(); // id -> authorization (insertion order)
     this.openAuths = new Set();      // authorizations whose status is 'open'
     this.ttlSeconds = DEFAULT_TTL;
+    this.snapshots = new Map();      // statement token -> frozen statement (until reset)
     this.seq = 0;
   }
 
@@ -90,27 +71,63 @@ class State {
 
   openHold(a) {
     this.authorizations.set(a.id, a);
+    this.users.get(a.fromId).holdIds.push(a.id);
     if (a.status === 'open') {
       this.openAuths.add(a.id);
       this.users.get(a.fromId).held += this.remaining(a);
     }
   }
 
-  // Closes an open hold with `status`, releasing whatever it still holds.
-  closeHold(a, status) {
+  // Closes an open hold with `status` at `at` ({ us, iso }), releasing whatever it
+  // still holds. The close is recorded for historical views: a void or final capture
+  // releases at its own time, expiry at the deadline.
+  closeHold(a, status, at) {
     this.users.get(a.fromId).held -= this.remaining(a);
     a.status = status;
     this.openAuths.delete(a.id);
+    if (status === 'expired') {
+      a.closeKind = 'expired';
+      a.closedUs = a.expiresUs;
+      a.closedAt = a.expiresAt;
+    } else {
+      a.closeKind = status === 'voided' ? 'void' : 'final';
+      a.closedUs = at.us;
+      a.closedAt = at.iso;
+    }
   }
 
-  // Every open authorization whose expiry is at or before `ms` becomes expired and
+  // Every open authorization whose expiry is at or before `us` becomes expired and
   // releases its remainder. Called at the start of every request, so all reads and
   // writes see expiry even when nothing happened at the deadline.
-  expireDue(ms) {
+  expireDue(us) {
     for (const id of this.openAuths) {
       const a = this.authorizations.get(id);
-      if (a.expiresMs <= ms) this.closeHold(a, 'expired');
+      if (a.expiresUs <= us) this.closeHold(a, 'expired');
     }
+  }
+
+  // ---- ledger -------------------------------------------------------------
+  // Every payment keeps its revisions; users keep an opening balance and the ids of
+  // their payments and holds. `lv` (ledger version) changes whenever anything that
+  // a user's history depends on changes, so derived views can be cached safely.
+
+  addPayment(p) {
+    if (!p.revs) {
+      p.revs = [{ rev: 1, amount: p.amount, effUs: p.createdUs, effAt: p.createdAt, recUs: p.createdUs,
+        recAt: p.createdAt, reason: '' }];
+    }
+    this.payments.set(p.id, p);
+    for (const uid of p.fromId === p.toId ? [p.fromId] : [p.fromId, p.toId]) {
+      const u = this.users.get(uid);
+      u.paymentIds.push(p.id);
+      this.touch(u, p.revs[p.revs.length - 1].recUs);
+    }
+  }
+
+  touch(u, recUs) {
+    u.lv++;
+    u.cache = null;
+    if (recUs > u.maxRecUs) u.maxRecUs = recUs;
   }
 
   nextSeq() {
@@ -132,6 +149,12 @@ class State {
 
   addUser(u) {
     u.held = 0n;
+    if (u.opening === undefined) u.opening = 0n;
+    u.paymentIds = [];
+    u.holdIds = [];
+    u.lv = 0;
+    u.cache = null;
+    u.maxRecUs = -(2n ** 63n);
     this.users.set(u.id, u);
     this.byHandle.set(u.handle, u);
     this.byEmail.set(u.email.toLowerCase(), u);
@@ -143,14 +166,15 @@ class State {
 
   // ---- views -------------------------------------------------------------
 
-  paymentView(p) {
+  // `amount` overrides the original amount (statements show the selected revision).
+  paymentView(p, amount = p.amount) {
     return {
       payment_id: p.id,
       from_user_id: p.fromId,
       from_handle: this.users.get(p.fromId).handle,
       to_user_id: p.toId,
       to_handle: this.users.get(p.toId).handle,
-      amount: p.amount,
+      amount,
       currency: this.currency,
       note: p.note,
       visibility: p.visibility,
@@ -176,6 +200,7 @@ class State {
       visibility: a.visibility,
       status: a.status,
       expires_at: a.expiresAt,
+      closed_at: a.status === 'open' ? null : a.closedAt,
       payment_id: a.paymentIds.length ? a.paymentIds[a.paymentIds.length - 1] : null,
       payment_ids: a.paymentIds.slice(),
       created_at: a.createdAt,
@@ -204,20 +229,20 @@ class State {
     const users = [];
     for (const u of this.users.values()) {
       users.push({ id: u.id, email: u.email, password_hash: u.passwordHash, display_name: u.displayName,
-        handle: u.handle, balance: u.balance });
+        handle: u.handle, balance: u.balance, opening_balance: u.opening });
     }
     const payments = [];
     for (const p of this.payments.values()) {
       payments.push({ id: p.id, from_user_id: p.fromId, to_user_id: p.toId, amount: p.amount, note: p.note,
         visibility: p.visibility, request_id: p.requestId, authorization_id: p.authorizationId,
-        settlement_id: p.settlementId,
-        created_at: p.createdAt, created_ms: p.createdMs, seq: p.seq });
+        settlement_id: p.settlementId, created_at: p.createdAt, seq: p.seq,
+        revisions: p.revs.map((r) => ({ revision: r.rev, amount: r.amount, effective_at: r.effAt,
+          recorded_at: r.recAt, reason: r.reason })) });
     }
     const requests = [];
     for (const r of this.requests.values()) {
       requests.push({ id: r.id, requester_id: r.requesterId, payer_id: r.payerId, amount: r.amount, note: r.note,
-        status: r.status, payment_id: r.paymentId, split_id: r.splitId, created_at: r.createdAt,
-        created_ms: r.createdMs, seq: r.seq });
+        status: r.status, payment_id: r.paymentId, split_id: r.splitId, created_at: r.createdAt, seq: r.seq });
     }
     const splits = [];
     for (const s of this.splits.values()) {
@@ -234,8 +259,8 @@ class State {
     for (const a of this.authorizations.values()) {
       authorizations.push({ id: a.id, from_user_id: a.fromId, to_user_id: a.toId, amount: a.amount,
         captured_amount: a.captured, note: a.note, visibility: a.visibility, status: a.status,
-        expires_at: a.expiresAt, expires_ms: a.expiresMs, payment_ids: a.paymentIds.slice(),
-        created_at: a.createdAt, created_ms: a.createdMs, seq: a.seq });
+        expires_at: a.expiresAt, payment_ids: a.paymentIds.slice(), created_at: a.createdAt, seq: a.seq,
+        closed_at: a.closedAt, close_kind: a.closeKind });
     }
     const tokens = [];
     for (const [t, uid] of this.tokens) tokens.push({ token: t, user_id: uid });
@@ -373,7 +398,6 @@ function authorizationFrom(st, raw, exported, fallbackStamp) {
   if (exported) {
     created = parseStamp(str(a, 'created_at', 'authorization'));
     if (!created) throw new StateError('authorization ' + id + ': bad created_at');
-    created.ms = Number(int(a, 'created_ms', 'authorization', { min: 0n, max: SAFE }));
   } else {
     created = stampOrNow(a, 'authorization', fallbackStamp);
   }
@@ -381,15 +405,34 @@ function authorizationFrom(st, raw, exported, fallbackStamp) {
     if (typeof x !== 'string') throw new StateError('authorization ' + id + ': bad payment_ids', true);
     return x;
   });
-  return { id, fromId, toId, amount, captured, note, visibility, status,
-    expiresAt: expires.iso, expiresMs: exported ? Number(int(a, 'expires_ms', 'authorization', { min: 0n, max: SAFE })) : expires.ms,
-    paymentIds, createdAt: created.iso, createdMs: created.ms,
-    seq: exported ? Number(int(a, 'seq', 'authorization', { min: 0n, max: SAFE })) : st.nextSeq() };
+  const auth = { id, fromId, toId, amount, captured, note, visibility, status,
+    expiresAt: expires.iso, expiresUs: expires.us, paymentIds, createdAt: created.iso, createdUs: created.us,
+    seq: exported ? Number(int(a, 'seq', 'authorization', { min: 0n, max: SAFE })) : st.nextSeq(),
+    closeKind: null, closedUs: null, closedAt: null };
+  // How a closed hold closed, for historical views. Stage-3 exports record it; for
+  // older exports and seeded closed holds it is reconstructed as far as the data allows.
+  if (status !== 'open') {
+    const kind = exported && has(a, 'close_kind') ? str(a, 'close_kind', 'authorization', { nullable: true }) : null;
+    const closed = exported && has(a, 'closed_at') && a.closed_at !== null
+      ? parseStamp(str(a, 'closed_at', 'authorization')) : null;
+    if (kind !== null && !['void', 'final', 'expired'].includes(kind)) throw new StateError('authorization ' + id + ': bad close_kind');
+    if (status === 'expired') {
+      Object.assign(auth, { closeKind: 'expired', closedUs: auth.expiresUs, closedAt: auth.expiresAt });
+    } else if (closed) {
+      Object.assign(auth, { closeKind: status === 'voided' ? 'void' : 'final', closedUs: closed.us, closedAt: closed.iso });
+    } else {
+      // Not recorded: the closing capture's time when known, else the creation time.
+      const last = paymentIds.length ? st.payments.get(paymentIds[paymentIds.length - 1]) : null;
+      const at = last && status === 'captured' ? { us: last.createdUs, iso: last.createdAt } : { us: auth.createdUs, iso: auth.createdAt };
+      Object.assign(auth, { closeKind: status === 'voided' ? 'void' : 'final', closedUs: at.us, closedAt: at.iso });
+    }
+  }
+  return auth;
 }
 
 // Applies expiry as of now and checks that no wallet holds more than it has.
 function settleHolds(st) {
-  st.expireDue(Date.now());
+  st.expireDue(nowUs());
   for (const u of st.users.values()) {
     if (u.held > u.balance) throw new StateError('open holds of ' + u.id + ' exceed its balance');
   }
@@ -433,11 +476,15 @@ function stateFromFixture(fx) {
     const visibility = str(p, 'visibility', 'payment', { dflt: 'public' });
     if (visibility !== 'public' && visibility !== 'private') throw new StateError('payment ' + id + ': bad visibility');
     const t = stampOrNow(p, 'payment', stamp);
-    st.payments.set(id, { id, fromId, toId, amount, note, visibility,
+    if (t.us > stamp.us) throw new StateError('payment ' + id + ': created_at is in the future');
+    st.addPayment({ id, fromId, toId, amount, note, visibility,
       requestId: str(p, 'request_id', 'payment', { dflt: null, nullable: true }),
       authorizationId: str(p, 'authorization_id', 'payment', { dflt: null, nullable: true }),
-      settlementId: null, createdAt: t.iso, createdMs: t.ms, seq: st.nextSeq() });
+      settlementId: null, createdAt: t.iso, createdUs: t.us, seq: st.nextSeq() });
   }
+  // A seeded balance is the balance after every seeded payment: the opening balance is
+  // what the wallet held before any of them.
+  for (const u of st.users.values()) u.opening = u.balance - netEffect(st, u);
 
   for (const raw of arr(fx, 'requests', 'fixture', { dflt: [] })) {
     const r = obj(raw, 'request');
@@ -453,7 +500,7 @@ function stateFromFixture(fx) {
     const t = stampOrNow(r, 'request', stamp);
     st.requests.set(id, { id, requesterId, payerId, amount, note, status,
       paymentId: str(r, 'payment_id', 'request', { dflt: null, nullable: true }),
-      splitId: null, createdAt: t.iso, createdMs: t.ms, seq: st.nextSeq() });
+      splitId: null, createdAt: t.iso, createdUs: t.us, seq: st.nextSeq() });
   }
 
   for (const v of arr(fx, 'settlement_operator_ids', 'fixture', { dflt: [] })) {
@@ -489,7 +536,9 @@ function stateFromExport(s) {
     if (st.users.has(id) || st.byHandle.has(handle) || st.byEmail.has(email.toLowerCase())) {
       throw new StateError('duplicate user');
     }
-    st.addUser({ id, email, passwordHash, displayName, handle, balance });
+    const opening = has(u, 'opening_balance') ? int(u, 'opening_balance', 'user', { min: -SAFE, max: SAFE }) : null;
+    st.addUser({ id, email, passwordHash, displayName, handle, balance, opening: opening === null ? undefined : opening,
+      openingKnown: opening !== null });
   }
 
   for (const raw of arr(s, 'tokens', 'state')) {
@@ -522,15 +571,16 @@ function stateFromExport(s) {
     const visibility = str(p, 'visibility', 'payment');
     if (visibility !== 'public' && visibility !== 'private') throw new StateError('payment: bad visibility');
     const t = stampOf(p, 'created_at', 'payment');
-    st.payments.set(id, { id, fromId, toId,
-      amount: int(p, 'amount', 'payment', { min: 0n, max: SAFE }),
+    const amount = int(p, 'amount', 'payment', { min: 0n, max: SAFE });
+    st.addPayment({ id, fromId, toId, amount,
       note: str(p, 'note', 'payment'), visibility,
       requestId: str(p, 'request_id', 'payment', { nullable: true }),
       // Stage-1 exports have no authorizations: absent means null.
       authorizationId: str(p, 'authorization_id', 'payment', { nullable: true, dflt: null }),
       settlementId: str(p, 'settlement_id', 'payment', { nullable: true }),
-      createdAt: t.iso, createdMs: Number(int(p, 'created_ms', 'payment', { min: 0n, max: SAFE })),
-      seq: seqOf(p, 'payment') });
+      createdAt: t.iso, createdUs: t.us, seq: seqOf(p, 'payment'),
+      // Stage-1/2 exports have no revisions: the payment is its own revision 1.
+      revs: has(p, 'revisions') ? revisionsFrom(p, id, amount, t) : undefined });
   });
 
   each(s, 'requests', 'state', (raw) => {
@@ -548,8 +598,7 @@ function stateFromExport(s) {
       note: str(r, 'note', 'request'), status,
       paymentId: str(r, 'payment_id', 'request', { nullable: true }),
       splitId: str(r, 'split_id', 'request', { nullable: true }),
-      createdAt: t.iso, createdMs: Number(int(r, 'created_ms', 'request', { min: 0n, max: SAFE })),
-      seq: seqOf(r, 'request') });
+      createdAt: t.iso, createdUs: t.us, seq: seqOf(r, 'request') });
   });
 
   for (const raw of arr(s, 'splits', 'state')) {
@@ -602,6 +651,17 @@ function stateFromExport(s) {
     st.idem.set(st.idemKey(userId, scope, key), { userId, scope, key, fp, status, body });
   });
 
+  // Opening balances: stage-3 exports carry them and must agree with the balances and
+  // revisions; for stage-1/2 exports they follow from the balances and the payments.
+  for (const u of st.users.values()) {
+    if (u.openingKnown) {
+      if (u.opening + netEffect(st, u) !== u.balance) throw new StateError('user ' + u.id + ': ledger does not add up');
+    } else {
+      u.opening = u.balance - netEffect(st, u);
+    }
+    delete u.openingKnown;
+  }
+
   // Stage-1 exports carry neither a lifetime nor authorizations.
   st.ttlSeconds = ttlOf(s, 'state');
   for (const raw of arr(s, 'authorizations', 'state', { dflt: [] })) {
@@ -628,5 +688,39 @@ function stateFromExport(s) {
   return st;
 }
 
-module.exports = { State, StateError, stateFromFixture, stateFromExport, now, stampAt, codePoints, HANDLE_RE, STATUSES,
-  AUTH_STATUSES };
+// Net effect on `u` of the latest revision of every payment.
+function netEffect(st, u) {
+  let net = 0n;
+  for (const pid of u.paymentIds) {
+    const p = st.payments.get(pid);
+    const amt = p.revs[p.revs.length - 1].amount;
+    if (p.fromId === u.id) net -= amt;
+    if (p.toId === u.id) net += amt;
+  }
+  return net;
+}
+
+// Revision list from a stage-3 export: revision numbers 1..n in order, revision 1 is
+// the original payment, recorded times strictly increase.
+function revisionsFrom(p, id, amount, created) {
+  const out = [];
+  for (const raw of arr(p, 'revisions', 'payment')) {
+    const r = obj(raw, 'revision');
+    const rev = Number(int(r, 'revision', 'revision', { min: 1n, max: 1000000000n }));
+    const eff = parseStamp(str(r, 'effective_at', 'revision'));
+    const rec = parseStamp(str(r, 'recorded_at', 'revision'));
+    if (!eff || !rec) throw new StateError('payment ' + id + ': bad revision time');
+    const entry = { rev, amount: int(r, 'amount', 'revision', { min: 0n, max: SAFE }), effUs: eff.us, effAt: eff.iso,
+      recUs: rec.us, recAt: rec.iso, reason: str(r, 'reason', 'revision') };
+    if (entry.rev !== out.length + 1) throw new StateError('payment ' + id + ': revisions out of order');
+    if (out.length && entry.recUs <= out[out.length - 1].recUs) throw new StateError('payment ' + id + ': recorded times must increase');
+    out.push(entry);
+  }
+  if (!out.length || out[0].amount !== amount || out[0].effUs !== created.us) {
+    throw new StateError('payment ' + id + ': revision 1 must be the original payment');
+  }
+  return out;
+}
+
+module.exports = { State, StateError, stateFromFixture, stateFromExport, now, codePoints, HANDLE_RE, STATUSES,
+  AUTH_STATUSES, parseStamp };

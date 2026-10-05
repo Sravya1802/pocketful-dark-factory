@@ -1,4 +1,4 @@
-# Pocketful — stage 2
+# Pocketful — stage 3
 
 Build and start (from this directory):
 
@@ -26,6 +26,9 @@ PORT=8080 node server.js
 - `src/state.js` — in-memory state, fixture loading, export/import of the full state.
 - `src/json.js` — strict JSON parser that keeps numbers exact (no binary floating point).
 - `src/passwords.js` — scrypt password hashing on the thread pool.
+- `src/time.js` — microsecond clock (strictly increasing) and RFC 3339 instant parsing.
+- `src/ledger.js` — historical views: balances by effective and recorded time, hold
+  timelines, and the boundary check used by corrections.
 - `src/ui.js` — serves the browser screens (`/`, `/requests`, `/split`, `/authorizations`,
   `/signup`, `/login`) and their assets. `/requests` and `/authorizations` are shared with the
   API: HTML when `Accept` contains `text/html`, JSON otherwise.
@@ -80,4 +83,24 @@ PORT=8080 node server.js
   key and body; an unchanged resubmission after success replays the original instead of
   creating anything new. Reads carry a sequence number and an older response never
   overwrites a newer one. Typed amounts are converted to minor units with string arithmetic.
+
+## Stage 3 notes
+
+- Every payment keeps an append-only revision list: revision 1 is the original
+  (`effective_at = recorded_at = created_at`); corrections append revisions with their own
+  effective time and a server-assigned recorded time (strictly increasing). The original
+  payment, `GET /activity` and every stored idempotent response are never changed.
+- Each wallet has an opening balance (seeded balance minus the net effect of the seeded or
+  imported payments). Any view `(as_of, known_at)` is: for each payment, the latest revision
+  recorded at or before `known_at`, applied by effective time up to `as_of`. Holds follow
+  their event timeline (creation, captures, void/final capture, expiry at `expires_at`).
+- Corrections run in one synchronous step: checks (current `available` first, then every
+  historical boundary for total and available of both parties), the new revision and the
+  money movement between the same two wallets. Settlement members and captures are
+  immutable (`422 linked_payment_immutable`).
+- Statements are built from an immutable per-user view (sorted entries with prefix sums,
+  cached until the user's ledger changes). A snapshot token records only the view and the
+  window in it, so tokens are small and share data; they live until reset or import.
+- Export/import carry revisions, opening balances and how each hold closed; stage-1 and
+  stage-2 exports import with revision 1 per payment and openings derived from balances.
 

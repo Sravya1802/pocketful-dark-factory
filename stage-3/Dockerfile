@@ -1,4 +1,4 @@
-# Pocketful stage 2. The service uses only the Node.js runtime: no packages are
+# Pocketful stage 3. The service uses only the Node.js runtime: no packages are
 # fetched at build or run time, and nothing reaches the network once started.
 FROM node:22-alpine
 WORKDIR /app

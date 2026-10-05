@@ -2,7 +2,7 @@
   "name": "pocketful",
   "version": "1.0.0",
   "private": true,
-  "description": "Pocketful stage 2: wallet screens, payments, requests, splits, settlements and authorizations",
+  "description": "Pocketful stage 3: statements, payment corrections and historical balances, plus the stage-2 wallet",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"

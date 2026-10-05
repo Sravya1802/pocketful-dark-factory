@@ -4,10 +4,12 @@
 // applied as a single indivisible step against the current state. Only password
 // hashing is asynchronous, and it never runs between a state check and its write.
 
+const crypto = require('crypto');
 const { JNum, JsonSyntaxError, parse, parseLarge, intValue, fingerprint, stringify, stringifyPieces } = require('./json');
 const { hashPassword, verifyPassword, hashSeedPassword } = require('./passwords');
-const { State, StateError, stateFromFixture, stateFromExport, now, stampAt, codePoints, STATUSES, AUTH_STATUSES,
-} = require('./state');
+const { State, StateError, stateFromFixture, stateFromExport, codePoints, STATUSES, AUTH_STATUSES } = require('./state');
+const { now, nowUs, stamp, parseInstant } = require('./time');
+const ledger = require('./ledger');
 const { uiResponse, wantsHtml } = require('./ui');
 
 class ApiError extends Error {
@@ -102,7 +104,8 @@ function page(q, items) {
 }
 
 function newestFirst(a, b) {
-  return (b.createdMs - a.createdMs) || (b.seq - a.seq);
+  if (a.createdUs !== b.createdUs) return a.createdUs < b.createdUs ? 1 : -1;
+  return b.seq - a.seq;
 }
 
 // ---- authentication -----------------------------------------------------------
@@ -159,11 +162,11 @@ function recordPayment(from, to, amount, note, visibility, requestId, settlement
   const p = {
     id: state.newId('p_', state.payments),
     fromId: from.id, toId: to.id, amount, note, visibility,
-    requestId, authorizationId, settlementId, createdAt: stamp.iso, createdMs: stamp.ms, seq: state.nextSeq(),
+    requestId, authorizationId, settlementId, createdAt: stamp.iso, createdUs: stamp.us, seq: state.nextSeq(),
   };
   from.balance -= amount;
   to.balance += amount;
-  state.payments.set(p.id, p);
+  state.addPayment(p);
   return p;
 }
 
@@ -274,11 +277,167 @@ async function login(ctx) {
   return { status: 200, body: { user_id: user.id, display_name: user.displayName, token } };
 }
 
+// An optional instant query parameter: null when absent; present but not an RFC 3339
+// instant with an offset (including empty) is 422.
+function instantParam(q, name) {
+  if (!q.has(name)) return null;
+  const text = q.get(name);
+  const t = parseInstant(text);
+  if (!t) throw invalid(name + ' must be an RFC 3339 instant with an offset');
+  return { text, us: t.us, ceilUs: t.ceilUs };
+}
+
 function me(ctx) {
   const u = authenticate(ctx.req);
-  return { status: 200, body: { user_id: u.id, display_name: u.displayName, handle: u.handle,
-    balance: u.balance, total: u.balance, available: state.available(u), held: u.held,
-    currency: state.currency, minor_units: state.minorUnits } };
+  const asOf = instantParam(ctx.query, 'as_of');
+  const knownAt = instantParam(ctx.query, 'known_at');
+  if (!asOf && !knownAt) {
+    return { status: 200, body: { user_id: u.id, display_name: u.displayName, handle: u.handle,
+      balance: u.balance, total: u.balance, available: state.available(u), held: u.held,
+      currency: state.currency, minor_units: state.minorUnits } };
+  }
+  // The view: revisions known at `known_at` (default: when this read began), applied
+  // by effective time up to and including `as_of` (default: when this read began).
+  const T = asOf ? asOf.us : ctx.now;
+  const K = knownAt ? knownAt.us : ctx.now;
+  const total = ledger.totalAt(state, u, T, K);
+  const held = ledger.heldAt(state, u, T, K);
+  const body = { user_id: u.id, display_name: u.displayName, handle: u.handle,
+    balance: total, total, available: total - held, held, currency: state.currency, minor_units: state.minorUnits };
+  if (asOf) body.as_of = asOf.text;
+  if (knownAt) body.known_at = knownAt.text;
+  return { status: 200, body };
+}
+
+// ---- statements ---------------------------------------------------------------------
+
+function statement(ctx) {
+  const u = authenticate(ctx.req);
+  const q = ctx.query;
+  if (q.has('snapshot')) {
+    if (q.has('from') || q.has('to') || q.has('known_at')) {
+      throw invalid('a snapshot already fixes from, to and known_at; send only limit and offset');
+    }
+    const token = q.get('snapshot');
+    const snap = state.snapshots.get(token);
+    if (!snap || snap.userId !== u.id) throw notFound('no such statement snapshot');
+    return { status: 200, body: statementPage(snap, token, q) };
+  }
+  const from = instantParam(q, 'from');
+  const to = instantParam(q, 'to');
+  const knownAt = instantParam(q, 'known_at');
+  const K = knownAt ? knownAt.us : ctx.now;
+  const toUs = to ? to.ceilUs : ctx.now; // half-open: effective strictly before `to`
+  const fromUs = from ? from.ceilUs : null; // effective at or after `from`
+  pageBounds(q); // validate limit and offset before freezing anything
+  // The view is immutable, so the snapshot only records where the window lies in it.
+  const view = ledger.userLedger(state, u, K);
+  const start = fromUs === null ? 0 : ledger.lowerBound(view.effs, fromUs);
+  // A window that ends before it starts is empty, with both balances taken at `from`.
+  const end = Math.max(start, ledger.lowerBound(view.effs, toUs));
+  const snap = { userId: u.id, view, start, end, knownAt: knownAt ? knownAt.text : null };
+  const token = state.newId('st3_', state.snapshots) + crypto.randomBytes(8).toString('hex');
+  state.snapshots.set(token, snap);
+  return { status: 200, body: statementPage(snap, token, q) };
+}
+
+function pageBounds(q) {
+  const limit = queryInt(q, 'limit', 50n, 1n, 200n);
+  const offset = queryInt(q, 'offset', 0n, 0n);
+  return { limit, offset };
+}
+
+function statementPage(snap, token, q) {
+  const { limit, offset } = pageBounds(q);
+  const { view, start, end } = snap;
+  const count = BigInt(end - start);
+  const first = offset >= count ? end : start + Number(offset);
+  const last = offset + limit >= count ? end : start + Number(offset + limit);
+  const entries = [];
+  for (let i = first; i < last; i++) {
+    const { p, r, d } = view.items[i];
+    entries.push({ payment: state.paymentView(p, r.amount), delta: d, balance_after: view.opening + view.prefix[i + 1],
+      revision: r.rev, effective_at: r.effAt, recorded_at: r.recAt });
+  }
+  const body = { opening_balance: view.opening + view.prefix[start], entries,
+    closing_balance: view.opening + view.prefix[end], has_more: offset + limit < count, snapshot: token };
+  if (snap.knownAt !== null) body.known_at = snap.knownAt;
+  return body;
+}
+
+// ---- corrections -------------------------------------------------------------------
+
+function findOwnPayment(user, id) {
+  const p = state.payments.get(id);
+  if (!p) throw notFound('no such payment');
+  if (p.fromId !== user.id) throw forbidden('only the sender may correct this payment');
+  return p;
+}
+
+function correctPayment(ctx, id) {
+  const user = authenticate(ctx.req);
+  const p = findOwnPayment(user, id);
+  const key = idempotencyKey(ctx.req);
+  return idempotent(ctx, user, key, (body) => {
+    for (const k of ['expected_revision', 'amount', 'effective_at', 'reason']) {
+      if (!has(body, k)) throw invalid(k + ' is required');
+    }
+    const expected = intValue(body.expected_revision);
+    if (expected === undefined || expected < 1n) throw invalid('expected_revision must be a positive integer');
+    const amount = intValue(body.amount);
+    if (amount === undefined || amount < 0n || amount > MAX_AMOUNT) {
+      throw invalid('amount must be an integer from 0 to ' + MAX_AMOUNT);
+    }
+    const eff = parseInstant(body.effective_at);
+    if (!eff) throw invalid('effective_at must be an RFC 3339 instant with an offset');
+    if (eff.us > nowUs()) throw invalid('effective_at must not be later than now');
+    if (typeof body.reason !== 'string' || codePoints(body.reason) < 1 || codePoints(body.reason) > 200) {
+      throw invalid('reason must be 1 to 200 characters');
+    }
+    if (p.settlementId !== null || p.authorizationId !== null) {
+      throw new ApiError(422, 'linked_payment_immutable', p.settlementId !== null
+        ? 'settlement members cannot be corrected one by one' : 'captures cannot be corrected');
+    }
+    const latest = p.revs[p.revs.length - 1];
+    if (expected !== BigInt(latest.rev)) {
+      throw new ApiError(409, 'stale_revision', 'the latest revision is ' + latest.rev);
+    }
+    // The difference moves between the same two wallets: an increase debits the
+    // sender, a decrease debits the receiver. Today's funds first, then history.
+    const sender = state.users.get(p.fromId);
+    const receiver = state.users.get(p.toId);
+    const diff = amount - latest.amount;
+    const debited = diff > 0n ? sender : receiver;
+    const debit = diff > 0n ? diff : -diff;
+    if (state.available(debited) < debit) {
+      throw new ApiError(409, 'insufficient_funds', 'available balance is below the correction difference');
+    }
+    const override = { p, amount, effUs: eff.us };
+    if (!ledger.historyHolds(state, sender, override) || !ledger.historyHolds(state, receiver, override)) {
+      throw new ApiError(409, 'historical_overdraft', 'the correction would make a balance negative in the past');
+    }
+    let recUs = nowUs();
+    if (recUs <= latest.recUs) recUs = latest.recUs + 1n;
+    const recorded = stamp(recUs);
+    const r = { rev: latest.rev + 1, amount, effUs: eff.us, effAt: body.effective_at, recUs, recAt: recorded.iso,
+      reason: body.reason };
+    p.revs.push(r);
+    sender.balance -= diff;
+    receiver.balance += diff;
+    state.touch(sender, recUs);
+    state.touch(receiver, recUs);
+    return { payment_id: p.id, revision: r.rev, amount: r.amount, effective_at: r.effAt, recorded_at: r.recAt,
+      reason: r.reason };
+  });
+}
+
+function paymentRevisions(ctx, id) {
+  const user = authenticate(ctx.req);
+  const p = state.payments.get(id);
+  // Only the two parties may read the history; to anyone else the payment is invisible.
+  if (!p || (p.fromId !== user.id && p.toId !== user.id)) throw notFound('no such payment');
+  return { status: 200, body: { revisions: p.revs.map((r) => ({ payment_id: p.id, revision: r.rev, amount: r.amount,
+    effective_at: r.effAt, recorded_at: r.recAt, reason: r.reason })) } };
 }
 
 function createPayment(ctx) {
@@ -309,7 +468,7 @@ function createRequest(ctx) {
     if (!payer) throw notFound('no user has handle ' + payerHandle);
     const t = now();
     const r = { id: state.newId('rq_', state.requests), requesterId: user.id, payerId: payer.id, amount, note,
-      status: 'pending', paymentId: null, splitId: null, createdAt: t.iso, createdMs: t.ms, seq: state.nextSeq() };
+      status: 'pending', paymentId: null, splitId: null, createdAt: t.iso, createdUs: t.us, seq: state.nextSeq() };
     state.requests.set(r.id, r);
     return state.requestView(r);
   });
@@ -405,7 +564,7 @@ function createSplit(ctx) {
     for (const s of shares) {
       if (s.userId === user.id) continue;
       const r = { id: state.newId('rq_', state.requests), requesterId: user.id, payerId: s.userId, amount: s.amount,
-        note, status: 'pending', paymentId: null, splitId: split.id, createdAt: t.iso, createdMs: t.ms,
+        note, status: 'pending', paymentId: null, splitId: split.id, createdAt: t.iso, createdUs: t.us,
         seq: state.nextSeq() };
       state.requests.set(r.id, r);
       split.requestIds.push(r.id);
@@ -494,10 +653,10 @@ function createAuthorization(ctx) {
       throw new ApiError(409, 'insufficient_funds', 'available balance is below amount');
     }
     const t = now();
-    const expires = stampAt(t.ms + Number(state.ttlSeconds) * 1000);
+    const expires = stamp(t.us + state.ttlSeconds * 1000000n);
     const a = { id: state.newId('a_', state.authorizations), fromId: user.id, toId: to.id, amount, captured: 0n,
-      note, visibility, status: 'open', expiresAt: expires.iso, expiresMs: expires.ms, paymentIds: [],
-      createdAt: t.iso, createdMs: t.ms, seq: state.nextSeq() };
+      note, visibility, status: 'open', expiresAt: expires.iso, expiresUs: expires.us, paymentIds: [],
+      createdAt: t.iso, createdUs: t.us, seq: state.nextSeq(), closeKind: null, closedUs: null, closedAt: null };
     state.openHold(a);
     return state.authorizationView(a);
   });
@@ -522,7 +681,7 @@ function captureAuthorization(ctx, id) {
     const final = has(body, 'final') ? body.final : true;
     const a = findAuthorization(id);
     if (a.toId !== user.id) throw forbidden('only the receiver may capture this authorization');
-    if (a.status === 'expired' && a.expiresMs <= ctx.now) {
+    if (a.status === 'expired' && a.expiresUs <= ctx.now) {
       throw new ApiError(409, 'authorization_expired', 'the authorization expired at ' + a.expiresAt);
     }
     if (a.status !== 'open') throw new ApiError(409, 'authorization_not_open', 'authorization is ' + a.status);
@@ -538,7 +697,8 @@ function captureAuthorization(ctx, id) {
     a.captured += amount;
     const p = recordPayment(payer, user, amount, a.note, a.visibility, null, null, now(), a.id);
     a.paymentIds.push(p.id);
-    if (final || a.captured === a.amount) state.closeHold(a, 'captured');
+    payer.cache = null;
+    if (final || a.captured === a.amount) state.closeHold(a, 'captured', { us: p.createdUs, iso: p.createdAt });
     return state.paymentView(p);
   });
 }
@@ -547,7 +707,7 @@ function voidAuthorization(ctx, id) {
   const user = authenticate(ctx.req);
   const a = findAuthorization(id);
   if (a.fromId !== user.id) throw forbidden('only the payer may void this authorization');
-  if (a.status === 'open') state.closeHold(a, 'voided');
+  if (a.status === 'open') state.closeHold(a, 'voided', now());
   else if (a.status !== 'voided') throw new ApiError(409, 'authorization_not_open', 'authorization is ' + a.status);
   return { status: 200, body: state.authorizationView(a) };
 }
@@ -585,6 +745,9 @@ const ROUTES = [
   { path: /^\/auth\/login$/, methods: { POST: login } },
   { path: /^\/me$/, methods: { GET: me } },
   { path: /^\/payments$/, methods: { POST: createPayment } },
+  { path: /^\/payments\/([^/]+)\/corrections$/, methods: { POST: correctPayment } },
+  { path: /^\/payments\/([^/]+)\/revisions$/, methods: { GET: paymentRevisions } },
+  { path: /^\/statement$/, methods: { GET: statement } },
   { path: /^\/requests$/, methods: { POST: createRequest, GET: listRequests } },
   { path: /^\/requests\/([^/]+)\/pay$/, methods: { POST: payRequest } },
   { path: /^\/requests\/([^/]+)\/decline$/, methods: { POST: (ctx, id) => closeRequest(ctx, id, 'declined') } },
@@ -609,7 +772,7 @@ function decodeSegment(s) {
 async function handle(ctx) {
   try {
     // Expiry is applied before anything reads or writes holds.
-    ctx.now = Date.now();
+    ctx.now = nowUs();
     state.expireDue(ctx.now);
     const screen = uiResponse(ctx);
     if (screen) return screen;
