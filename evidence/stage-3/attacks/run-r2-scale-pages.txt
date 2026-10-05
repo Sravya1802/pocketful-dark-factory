@@ -1,0 +1,10 @@
+150000 payments, fixture 30 MB
+reset 204 0.8s
+sequential old-snapshot page: avg 0.039s max 0.108s
+300 pages of old snapshots @50 concurrent: max 8.92s avg 1.35s statuses [200]
+FAIL: a snapshot page exceeded the 5 s per-request limit (or errored) under 50 concurrent pages
+250000 payments, fixture 49 MB
+reset 204 1.3s
+sequential old-snapshot page: avg 0.064s max 0.148s
+300 pages of old snapshots @50 concurrent: max 18.74s avg 2.87s statuses [200]
+FAIL: a snapshot page exceeded the 5 s per-request limit (or errored) under 50 concurrent pages

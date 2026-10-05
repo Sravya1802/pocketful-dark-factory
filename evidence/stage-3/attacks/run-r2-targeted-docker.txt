@@ -1,0 +1,546 @@
+== A G_races
+PASS A.30 clients, same expected_revision 1, distinct keys: exactly one 201, rest 409 stale_revision
+PASS A.…revision history has exactly revisions 1 and 2, money moved once
+PASS A.30 identical corrections, same key: 1x201 + 29x200, identical bodies
+PASS A.…balances: ada 10000-300, bob 2500+300
+PASS A.five rounds x 20 concurrent corrections: exactly one winner per round (5)
+PASS A.correction(+4000) vs payment(4500) race x12: nonneg, sum preserved, outcome equals some serial order
+PASS A.correction vs capture race x8: invariants hold, sum preserved
+PASS A.snapshot paged 25 times during concurrent payments+corrections never changes
+PASS A.6456 statement reads during payment+correction storm: opening+sum(delta)==closing and balance_after running at every read
+PASS A.…sum of totals == seeded total after the storm
+== B G_precedence
+PASS B.decrease beyond receiver's current available -> 409 insufficient_funds
+PASS B.moving a credit later than the debit it funds -> 409 historical_overdraft (current balance fine)
+PASS B.failure preserved balances, revisions, statements
+PASS B.insufficient_funds takes precedence over historical_overdraft when both apply
+PASS B.same amount, later effective time with no debit -> historical_overdraft (no money to check)
+PASS B.a failed correction does not claim its key (same key then succeeds with a valid body)
+PASS B.seeded combined same-instant movements with net-zero for bob accepted
+   INFO tie order bob: [('t1', 100, 100), ('t2', -100, 0)] opening 0
+PASS B.tie order is by payment id: t1 (+100) then t2 (-100); bob balance_after 100 then 0 (never negative at the instant per statement order)
+PASS B.t1 100->50 at same instant: bob currently has 0 -> insufficient_funds
+PASS B.…with current funds the same correction is historical_overdraft (bob would be -50 at that instant)
+PASS B.increase t1 to 150 (ada debited 50 more) succeeds
+PASS B.moving credit after the hold it funds -> historical_overdraft (available negative at hold creation)
+PASS B.decreasing credit to exactly the hold amount (available 0 at boundary) is allowed? bob has 3000-2500 held; current debit 500 <= available 500
+   INFO decrease to exactly hold: 201 None
+   INFO decrease to hold-1: 409 {'code': 'insufficient_funds', 'message': 'available balance is below the correction difference'}
+PASS B.revision 1 immutable (reason '', original amount/effective/recorded)
+PASS B.replay (reordered body) -> 200 identical original revision
+PASS B.replay after a newer revision still returns the ORIGINAL revision 2 body with 200
+PASS B.same key different body -> 409 idempotency_key_reuse
+PASS B.claimed key + invalid body -> 409 (before validation)
+PASS B.claimed key + missing fields -> 409
+PASS B.other user using same key string on the same payment: 403 (not sender)
+PASS B.stale revision (1) now -> 409 stale_revision (new key)
+PASS B.same key on another payment's correction path is a first use (201)
+PASS B.no token -> 401
+PASS B.unknown payment -> 404
+PASS B.non-party -> 403
+PASS B.receiver (not sender) -> 403
+PASS B.unknown payment as anyone -> 404 (before 403)
+PASS B.missing idempotency key -> 400
+PASS B.unparseable body -> 400
+PASS B.array body -> 400
+PASS B.validation (422) before stale (409): invalid amount with stale revision -> 422
+PASS B.settlement member correction by sender -> 422 linked_payment_immutable
+PASS B.settlement member correction by non-sender (receiver) -> 403 forbidden (403 before 422)
+PASS B.linked check happens after validation (invalid body on linked payment -> 422 validation_failed)
+PASS B.capture correction by payer -> 422 linked_payment_immutable
+PASS B.capture correction by the receiver (non-sender) -> 403
+PASS B.payment that paid a request is correctable (201)
+PASS B.activity feed still shows ORIGINAL amounts, correction records are not feed payments
+PASS B.revisions endpoint: receiver can read, ordered
+PASS B.revisions: third party 404 even for public payment
+PASS B.revisions: no token 401, unknown 404
+PASS B.corrections endpoint exists only as POST (GET/DELETE -> 4xx, no 5xx)
+   INFO revisions with junk query: 404
+== C G_validation
+PASS C.missing expected_revision -> 422
+PASS C.missing amount -> 422
+PASS C.missing effective_at -> 422
+PASS C.missing reason -> 422
+PASS C.expected_revision 0 -> 4xx (422/409/400), never 5xx/201
+PASS C.expected_revision 0 -> 422 validation_failed
+PASS C.expected_revision -1 -> 4xx (422/409/400), never 5xx/201
+PASS C.expected_revision -1 -> 422 validation_failed
+PASS C.expected_revision 1.5 -> 4xx (422/409/400), never 5xx/201
+PASS C.expected_revision 1.5 -> 422 validation_failed
+PASS C.expected_revision '1' -> 4xx (422/409/400), never 5xx/201
+PASS C.expected_revision '1' -> 422 validation_failed
+PASS C.expected_revision True -> 4xx (422/409/400), never 5xx/201
+PASS C.expected_revision True -> 422 validation_failed
+PASS C.expected_revision None -> 4xx (422/409/400), never 5xx/201
+PASS C.expected_revision None -> 422 validation_failed
+PASS C.expected_revision [] -> 4xx (422/409/400), never 5xx/201
+PASS C.expected_revision [] -> 422 validation_failed
+PASS C.expected_revision 1000000000000 -> 4xx (422/409/400), never 5xx/201
+PASS C.amount -1 -> 422
+PASS C.amount 1000000001 -> 422
+PASS C.amount 1.5 -> 422
+PASS C.amount '5' -> 422
+PASS C.amount True -> 422
+PASS C.amount None -> 422
+PASS C.amount [] -> 422
+PASS C.amount {} -> 422
+PASS C.amount 1000000000000000000000000000000 -> 422
+PASS C.reason ''(len 0) -> 422
+PASS C.reason 'xxxxxxxxxxxx'(len 201) -> 422
+PASS C.reason '5'(len -) -> 422
+PASS C.reason 'None'(len -) -> 422
+PASS C.reason 'True'(len -) -> 422
+PASS C.reason '[]'(len -) -> 422
+PASS C.reason '😀😀😀😀😀😀😀😀😀😀😀😀'(len 201) -> 422
+PASS C.reason of 200 chars accepted (201) and echoed verbatim
+PASS C.reason of 200 chars accepted (201) and echoed verbatim
+PASS C.reason of 1 chars accepted (201) and echoed verbatim
+PASS C.effective_at '' -> 422
+PASS C.effective_at '2026-10-05' -> 422
+PASS C.effective_at '2026-10-05T10:00:00' -> 422
+PASS C.effective_at 'yesterday' -> 422
+PASS C.effective_at 5 -> 422
+PASS C.effective_at None -> 422
+PASS C.effective_at True -> 422
+PASS C.effective_at '2026-13-01T00:00:00+00:00' -> 422
+PASS C.effective_at '2026-02-30T00:00:00+00:00' -> 422
+PASS C.effective_at '2026-10-05T25:00:00+00:00' -> 422
+PASS C.effective_at '2026-10-05T10:60:00+00:00' -> 422
+PASS C.effective_at '2026-10-05 10:00:00+00:00' -> 422
+PASS C.effective_at '2026-10-05T10:00:00+24:00' -> 422
+PASS C.effective_at '2026-10-05T10:00:00+99:00' -> 422
+PASS C.effective_at '2026-10-05T10:00:00+0000' -> 422
+PASS C.effective_at '2026-10-05T10:00:00 +00:00' -> 422
+PASS C.effective_at ' 2026-10-05T10:00:00Z' -> 422
+PASS C.effective_at '2026-10-05T10:00:00.Z' -> 422
+PASS C.effective_at '2026-10-05T10:00:00,5Z' -> 422
+PASS C.effective_at one hour in the future -> 422
+PASS C.effective_at 2 s in the future -> 422
+PASS C.effective_at '2026-10-04T10:00:00Z' accepted and echoed exactly
+PASS C.effective_at '2026-10-04T10:00:00z' accepted and echoed exactly
+PASS C.effective_at '2026-10-04t10:00:00Z' accepted and echoed exactly
+PASS C.effective_at '2026-10-04T10:00:00.1Z' accepted and echoed exactly
+PASS C.effective_at '2026-10-04T10:00:00.123456789+05:30' accepted and echoed exactly
+PASS C.effective_at '2026-10-04T10:00:00-00:00' accepted and echoed exactly
+PASS C.effective_at '2026-10-04T23:59:60Z' accepted and echoed exactly
+PASS C.effective_at '2026-10-04T10:00:00+23:59' accepted and echoed exactly
+PASS C.effective_at '1970-01-01T00:00:00Z' accepted and echoed exactly
+PASS C.effective_at '0001-01-01T00:00:00Z' accepted and echoed exactly
+PASS C.amount 0 (reverses the payment) accepted
+PASS C.…after reversal the sender got the money back (ada net 0 for this payment)
+PASS C.amount 1000000000 accepted (boundary)
+PASS C.unknown fields ignored; parties/visibility unchanged
+PASS C.statement keeps parties and visibility after corrections
+   INFO integer-valued float forms expected_revision 1e0 / amount 1e2 -> 409 {'code': 'stale_revision', 'message': 'the latest revision is 17'}
+PASS C.amount 5.0 (integral numeric) accepted like stage-1 numbers
+PASS C.body > 256KiB -> 413
+== D G_instants
+PASS D./me?as_of='2026-09-24T13:20:00Z' -> 200 echoed exactly
+PASS D./me?as_of='2026-09-24T13:20:00z' -> 200 echoed exactly
+PASS D./me?as_of='2026-09-24t13:20:00Z' -> 200 echoed exactly
+PASS D./me?as_of='2026-09-24T13:20:00+00:00' -> 200 echoed exactly
+PASS D./me?as_of='2026-09-24T13:20:00-07:00' -> 200 echoed exactly
+PASS D./me?as_of='2026-09-24T13:20:00.1+02:00' -> 200 echoed exactly
+PASS D./me?as_of='2026-09-24T13:20:00.123456Z' -> 200 echoed exactly
+PASS D./me?as_of='2026-09-24T13:20:00.1234567Z' -> 200 echoed exactly
+PASS D./me?as_of='2026-09-24T13:20:00.123456789Z' -> 200 echoed exactly
+PASS D./me?as_of='2026-09-24T23:59:60Z' -> 200 echoed exactly
+PASS D./me?as_of='2026-09-24T13:20:00+23:59' -> 200 echoed exactly
+PASS D./me?as_of='2026-09-24T13:20:00-23:59' -> 200 echoed exactly
+PASS D./me?as_of='2099-01-01T00:00:00Z' -> 200 echoed exactly
+PASS D./me?as_of='1999-12-31T23:59:59Z' -> 200 echoed exactly
+PASS D./me?as_of='2026-09-24T13:20:00-00:00' -> 200 echoed exactly
+PASS D./me?as_of='' -> 422 validation_failed
+PASS D./me?as_of='2026-09-24' -> 422 validation_failed
+PASS D./me?as_of='2026-09-24T13:20:00' -> 422 validation_failed
+PASS D./me?as_of='2026-09-24 13:20:00Z' -> 422 validation_failed
+PASS D./me?as_of='13:20:00Z' -> 422 validation_failed
+PASS D./me?as_of='yesterday' -> 422 validation_failed
+PASS D./me?as_of='now' -> 422 validation_failed
+PASS D./me?as_of='1790000000' -> 422 validation_failed
+PASS D./me?as_of='2026-09-24T13:20Z' -> 422 validation_failed
+PASS D./me?as_of='2026-09-24T13:20:00' -> 422 validation_failed
+PASS D./me?as_of='2026-09-24T13:20:00+24:00' -> 422 validation_failed
+PASS D./me?as_of='2026-09-24T13:20:00+0000' -> 422 validation_failed
+PASS D./me?as_of='2026-09-24T13:20:00+00' -> 422 validation_failed
+PASS D./me?as_of='2026-13-24T13:20:00Z' -> 422 validation_failed
+PASS D./me?as_of='2026-09-31T13:20:00Z' -> 422 validation_failed
+PASS D./me?as_of='2026-09-24T24:00:00Z' -> 422 validation_failed
+PASS D./me?as_of='2026-09-24T13:61:00Z' -> 422 validation_failed
+PASS D./me?as_of='2026-09-24T13:20:61Z' -> 422 validation_failed
+PASS D./me?as_of='2026-09-24T13:20:00.Z' -> 422 validation_failed
+PASS D./me?as_of='2026-09-24T13:20:00Zjunk' -> 422 validation_failed
+PASS D./me?as_of='2026-09-24T13:20:00Z2026' -> 422 validation_failed
+PASS D./me?as_of='%20' -> 422 validation_failed
+PASS D./me?as_of='2026-09-24T13:20:00%20Z' -> 422 validation_failed
+PASS D./me?as_of='2026-09-24T13:20:00+00:60' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24T13:20:00Z' -> 200 echoed exactly
+PASS D./me?known_at='2026-09-24T13:20:00z' -> 200 echoed exactly
+PASS D./me?known_at='2026-09-24t13:20:00Z' -> 200 echoed exactly
+PASS D./me?known_at='2026-09-24T13:20:00+00:00' -> 200 echoed exactly
+PASS D./me?known_at='2026-09-24T13:20:00-07:00' -> 200 echoed exactly
+PASS D./me?known_at='2026-09-24T13:20:00.1+02:00' -> 200 echoed exactly
+PASS D./me?known_at='2026-09-24T13:20:00.123456Z' -> 200 echoed exactly
+PASS D./me?known_at='2026-09-24T13:20:00.1234567Z' -> 200 echoed exactly
+PASS D./me?known_at='2026-09-24T13:20:00.123456789Z' -> 200 echoed exactly
+PASS D./me?known_at='2026-09-24T23:59:60Z' -> 200 echoed exactly
+PASS D./me?known_at='2026-09-24T13:20:00+23:59' -> 200 echoed exactly
+PASS D./me?known_at='2026-09-24T13:20:00-23:59' -> 200 echoed exactly
+PASS D./me?known_at='2099-01-01T00:00:00Z' -> 200 echoed exactly
+PASS D./me?known_at='1999-12-31T23:59:59Z' -> 200 echoed exactly
+PASS D./me?known_at='2026-09-24T13:20:00-00:00' -> 200 echoed exactly
+PASS D./me?known_at='' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24T13:20:00' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24 13:20:00Z' -> 422 validation_failed
+PASS D./me?known_at='13:20:00Z' -> 422 validation_failed
+PASS D./me?known_at='yesterday' -> 422 validation_failed
+PASS D./me?known_at='now' -> 422 validation_failed
+PASS D./me?known_at='1790000000' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24T13:20Z' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24T13:20:00' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24T13:20:00+24:00' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24T13:20:00+0000' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24T13:20:00+00' -> 422 validation_failed
+PASS D./me?known_at='2026-13-24T13:20:00Z' -> 422 validation_failed
+PASS D./me?known_at='2026-09-31T13:20:00Z' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24T24:00:00Z' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24T13:61:00Z' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24T13:20:61Z' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24T13:20:00.Z' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24T13:20:00Zjunk' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24T13:20:00Z2026' -> 422 validation_failed
+PASS D./me?known_at='%20' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24T13:20:00%20Z' -> 422 validation_failed
+PASS D./me?known_at='2026-09-24T13:20:00+00:60' -> 422 validation_failed
+PASS D./statement?from='2026-09-24T13:20:00Z' -> 200
+PASS D./statement?from='2026-09-24T13:20:00z' -> 200
+PASS D./statement?from='2026-09-24t13:20:00Z' -> 200
+PASS D./statement?from='2026-09-24T13:20:00+00:00' -> 200
+PASS D./statement?from='2026-09-24T13:20:00-07:00' -> 200
+PASS D./statement?from='2026-09-24T13:20:00.1+02:00' -> 200
+PASS D./statement?from='2026-09-24T13:20:00.123456Z' -> 200
+PASS D./statement?from='2026-09-24T13:20:00.1234567Z' -> 200
+PASS D./statement?from='2026-09-24T13:20:00.123456789Z' -> 200
+PASS D./statement?from='2026-09-24T23:59:60Z' -> 200
+PASS D./statement?from='2026-09-24T13:20:00+23:59' -> 200
+PASS D./statement?from='2026-09-24T13:20:00-23:59' -> 200
+PASS D./statement?from='2099-01-01T00:00:00Z' -> 200
+PASS D./statement?from='1999-12-31T23:59:59Z' -> 200
+PASS D./statement?from='2026-09-24T13:20:00-00:00' -> 200
+PASS D./statement?from='' -> 422 validation_failed
+PASS D./statement?from='2026-09-24' -> 422 validation_failed
+PASS D./statement?from='2026-09-24T13:20:00' -> 422 validation_failed
+PASS D./statement?from='2026-09-24 13:20:00Z' -> 422 validation_failed
+PASS D./statement?from='13:20:00Z' -> 422 validation_failed
+PASS D./statement?from='yesterday' -> 422 validation_failed
+PASS D./statement?from='now' -> 422 validation_failed
+PASS D./statement?from='1790000000' -> 422 validation_failed
+PASS D./statement?from='2026-09-24T13:20Z' -> 422 validation_failed
+PASS D./statement?from='2026-09-24T13:20:00' -> 422 validation_failed
+PASS D./statement?from='2026-09-24T13:20:00+24:00' -> 422 validation_failed
+PASS D./statement?from='2026-09-24T13:20:00+0000' -> 422 validation_failed
+PASS D./statement?from='2026-09-24T13:20:00+00' -> 422 validation_failed
+PASS D./statement?from='2026-13-24T13:20:00Z' -> 422 validation_failed
+PASS D./statement?from='2026-09-31T13:20:00Z' -> 422 validation_failed
+PASS D./statement?from='2026-09-24T24:00:00Z' -> 422 validation_failed
+PASS D./statement?from='2026-09-24T13:61:00Z' -> 422 validation_failed
+PASS D./statement?from='2026-09-24T13:20:61Z' -> 422 validation_failed
+PASS D./statement?from='2026-09-24T13:20:00.Z' -> 422 validation_failed
+PASS D./statement?from='2026-09-24T13:20:00Zjunk' -> 422 validation_failed
+PASS D./statement?from='2026-09-24T13:20:00Z2026' -> 422 validation_failed
+PASS D./statement?from='%20' -> 422 validation_failed
+PASS D./statement?from='2026-09-24T13:20:00%20Z' -> 422 validation_failed
+PASS D./statement?from='2026-09-24T13:20:00+00:60' -> 422 validation_failed
+PASS D./statement?to='2026-09-24T13:20:00Z' -> 200
+PASS D./statement?to='2026-09-24T13:20:00z' -> 200
+PASS D./statement?to='2026-09-24t13:20:00Z' -> 200
+PASS D./statement?to='2026-09-24T13:20:00+00:00' -> 200
+PASS D./statement?to='2026-09-24T13:20:00-07:00' -> 200
+PASS D./statement?to='2026-09-24T13:20:00.1+02:00' -> 200
+PASS D./statement?to='2026-09-24T13:20:00.123456Z' -> 200
+PASS D./statement?to='2026-09-24T13:20:00.1234567Z' -> 200
+PASS D./statement?to='2026-09-24T13:20:00.123456789Z' -> 200
+PASS D./statement?to='2026-09-24T23:59:60Z' -> 200
+PASS D./statement?to='2026-09-24T13:20:00+23:59' -> 200
+PASS D./statement?to='2026-09-24T13:20:00-23:59' -> 200
+PASS D./statement?to='2099-01-01T00:00:00Z' -> 200
+PASS D./statement?to='1999-12-31T23:59:59Z' -> 200
+PASS D./statement?to='2026-09-24T13:20:00-00:00' -> 200
+PASS D./statement?to='' -> 422 validation_failed
+PASS D./statement?to='2026-09-24' -> 422 validation_failed
+PASS D./statement?to='2026-09-24T13:20:00' -> 422 validation_failed
+PASS D./statement?to='2026-09-24 13:20:00Z' -> 422 validation_failed
+PASS D./statement?to='13:20:00Z' -> 422 validation_failed
+PASS D./statement?to='yesterday' -> 422 validation_failed
+PASS D./statement?to='now' -> 422 validation_failed
+PASS D./statement?to='1790000000' -> 422 validation_failed
+PASS D./statement?to='2026-09-24T13:20Z' -> 422 validation_failed
+PASS D./statement?to='2026-09-24T13:20:00' -> 422 validation_failed
+PASS D./statement?to='2026-09-24T13:20:00+24:00' -> 422 validation_failed
+PASS D./statement?to='2026-09-24T13:20:00+0000' -> 422 validation_failed
+PASS D./statement?to='2026-09-24T13:20:00+00' -> 422 validation_failed
+PASS D./statement?to='2026-13-24T13:20:00Z' -> 422 validation_failed
+PASS D./statement?to='2026-09-31T13:20:00Z' -> 422 validation_failed
+PASS D./statement?to='2026-09-24T24:00:00Z' -> 422 validation_failed
+PASS D./statement?to='2026-09-24T13:61:00Z' -> 422 validation_failed
+PASS D./statement?to='2026-09-24T13:20:61Z' -> 422 validation_failed
+PASS D./statement?to='2026-09-24T13:20:00.Z' -> 422 validation_failed
+PASS D./statement?to='2026-09-24T13:20:00Zjunk' -> 422 validation_failed
+PASS D./statement?to='2026-09-24T13:20:00Z2026' -> 422 validation_failed
+PASS D./statement?to='%20' -> 422 validation_failed
+PASS D./statement?to='2026-09-24T13:20:00%20Z' -> 422 validation_failed
+PASS D./statement?to='2026-09-24T13:20:00+00:60' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24T13:20:00Z' -> 200
+PASS D./statement?known_at='2026-09-24T13:20:00z' -> 200
+PASS D./statement?known_at='2026-09-24t13:20:00Z' -> 200
+PASS D./statement?known_at='2026-09-24T13:20:00+00:00' -> 200
+PASS D./statement?known_at='2026-09-24T13:20:00-07:00' -> 200
+PASS D./statement?known_at='2026-09-24T13:20:00.1+02:00' -> 200
+PASS D./statement?known_at='2026-09-24T13:20:00.123456Z' -> 200
+PASS D./statement?known_at='2026-09-24T13:20:00.1234567Z' -> 200
+PASS D./statement?known_at='2026-09-24T13:20:00.123456789Z' -> 200
+PASS D./statement?known_at='2026-09-24T23:59:60Z' -> 200
+PASS D./statement?known_at='2026-09-24T13:20:00+23:59' -> 200
+PASS D./statement?known_at='2026-09-24T13:20:00-23:59' -> 200
+PASS D./statement?known_at='2099-01-01T00:00:00Z' -> 200
+PASS D./statement?known_at='1999-12-31T23:59:59Z' -> 200
+PASS D./statement?known_at='2026-09-24T13:20:00-00:00' -> 200
+PASS D./statement?known_at='' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24T13:20:00' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24 13:20:00Z' -> 422 validation_failed
+PASS D./statement?known_at='13:20:00Z' -> 422 validation_failed
+PASS D./statement?known_at='yesterday' -> 422 validation_failed
+PASS D./statement?known_at='now' -> 422 validation_failed
+PASS D./statement?known_at='1790000000' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24T13:20Z' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24T13:20:00' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24T13:20:00+24:00' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24T13:20:00+0000' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24T13:20:00+00' -> 422 validation_failed
+PASS D./statement?known_at='2026-13-24T13:20:00Z' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-31T13:20:00Z' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24T24:00:00Z' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24T13:61:00Z' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24T13:20:61Z' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24T13:20:00.Z' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24T13:20:00Zjunk' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24T13:20:00Z2026' -> 422 validation_failed
+PASS D./statement?known_at='%20' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24T13:20:00%20Z' -> 422 validation_failed
+PASS D./statement?known_at='2026-09-24T13:20:00+00:60' -> 422 validation_failed
+PASS D./me empty instant param -> 422
+   INFO /me raw '+' (decodes to space) -> 422
+PASS D./me raw unencoded '+' offset: 200 (lenient) or 422, never 5xx
+PASS D./me unrecognized params ignored
+   INFO /me duplicated param (first valid, second bad) -> 200
+PASS D./statement empty instant param -> 422
+   INFO /statement raw '+' (decodes to space) -> 422
+PASS D./statement raw unencoded '+' offset: 200 (lenient) or 422, never 5xx
+PASS D./statement unrecognized params ignored
+   INFO /statement duplicated param (first valid, second bad) -> 200
+PASS D./me?as_of keeps all stage-2 money fields
+PASS D./me?as_of no token -> 401 (before param validation)
+PASS D./me?as_of=bad no token -> 401
+PASS D.statement all-invalid -> 422
+PASS D.statement ?limit=0 -> 422
+PASS D.statement ?limit=201 -> 422
+PASS D.statement ?limit=1e2 -> 422
+PASS D.statement ?limit=4.0 -> 422
+PASS D.statement ?limit=+4 -> 422
+PASS D.statement ?limit=-1 -> 422
+PASS D.statement ?offset=-1 -> 422
+PASS D.statement ?offset=1e0 -> 422
+PASS D.statement ?limit= -> 422
+PASS D.statement ?offset=abc -> 422
+   INFO from>to -> 200 10000 10000 0
+PASS D.statement from>to: 200 empty window or 422, not 5xx
+PASS D.statement from==to -> empty half-open window
+== E G_semantics
+PASS E.seeded payments with created_at (+02:00 offset, one omitted) accepted
+PASS E.seeded balances unchanged by loading payments (ada 10000, bob 2500, cy 100)
+   INFO ada statement ids: ['sa', 'sb', 'sc', 'sz'] opening 10340
+PASS E.opening_balance == seeded balance - net of seeded payments (ada 10000 - (-340))
+PASS E.omitted created_at: payment uses reset time, after the explicit past ones and before later API payments
+PASS E.created_at of sc normalises to the same instant regardless of offset (ordering by instant)
+PASS E.API payment after reset sorts after seeded 'sz' and has created_at with offset
+PASS E.every endpoint returning a payment includes created_at (activity, statement, revisions, capture, request pay, settlement)
+PASS E./activity ordering is newest-first by created_at
+PASS E.as_of 2026-10-05T03:35:58+00:00 inclusive at the payment's instant [ada]
+PASS E.as_of 2026-10-05T03:35:57.999999+00:00 inclusive at the payment's instant [ada]
+PASS E.as_of 2026-10-05T03:35:58.000001+00:00 inclusive at the payment's instant [ada]
+PASS E.as_of far future == current
+PASS E.as_of before earliest == opening balance
+PASS E.as_of echoes exactly as given (with offset)
+PASS E.new account opens at zero (as_of before everything)
+PASS E.empty statement for new account: opening 0, closing 0, entries [], has_more false, snapshot present
+PASS E.zero-amount revision still appears as an entry with delta 0 and balance_after unchanged
+PASS E.known_at at revision 1's recorded time selects revision 1 (amount 400)
+PASS E.known_at just before the payment was recorded: 'none recorded yet contributes nothing' (no entries, balance == opening)
+PASS E./me known_at before recording -> opening balance (10000)
+PASS E.known_at == correction recorded_at selects the correction (inclusive)
+PASS E.known_at 1µs before the correction was recorded selects revision 1
+PASS E.known_at in the future selects the latest revision
+PASS E.payment inside the window before correction
+PASS E.correction moving effective_at an hour earlier moves it OUT of the window (opening includes it)
+PASS E.…while known_at before the correction still shows it in the window
+PASS E.receiver's statement shows positive delta and own balances
+PASS E.third party statement never shows other users' payments (even public)
+PASS E.private payment appears in both parties' statements but not third party's
+PASS E.seeded created_at in the future -> 422 validation_failed
+PASS E.…reset changed nothing (old token works)
+PASS E.seeded created_at garbage -> 4xx
+PASS E.seeded created_at without offset -> 4xx
+   INFO seeded created_at null -> 204
+   INFO seeded history with negative opening (ada balance 0 after paying 100 => opening 100? ok) -> 204
+   INFO seeded payment makes bob's opening negative (-100... bob balance 0 after paying 100 => opening 100) -> 204
+== F G_snapshots
+PASS F.first response carries opaque snapshot token and 3 entries has_more
+PASS F.snapshot pages the whole frozen result
+PASS F.snapshot page response carries the same snapshot-consistent balances
+PASS F.frozen after later payment, correction and hold lifecycle actions
+PASS F.snapshot limit=3 offset=0: 3 entries, has_more True
+PASS F.snapshot limit=3 offset=3: 3 entries, has_more True
+PASS F.snapshot limit=3 offset=6: 1 entries, has_more False
+PASS F.snapshot limit=3 offset=7: 0 entries, has_more False
+PASS F.snapshot limit=3 offset=100: 0 entries, has_more False
+PASS F.snapshot limit=7 offset=0: 7 entries, has_more False
+PASS F.snapshot limit=6 offset=0: 6 entries, has_more True
+PASS F.snapshot limit=1 offset=6: 1 entries, has_more False
+PASS F.snapshot limit=200 offset=0: 7 entries, has_more False
+PASS F.snapshot limit=2 offset=4: 2 entries, has_more True
+PASS F.snapshot limit=2 offset=5: 2 entries, has_more False
+PASS F.snapshot + 'from=2026-01-01T00:00:00Z' -> 422 validation_failed
+PASS F.snapshot + 'to=2026-12-01T00:00:00Z' -> 422 validation_failed
+PASS F.snapshot + 'known_at=2026-12-01T00:00:00Z' -> 422 validation_failed
+PASS F.snapshot + 'from=bad' -> 422 validation_failed
+PASS F.snapshot + 'known_at=' -> 422 validation_failed
+PASS F.snapshot + 'from=' -> 422 validation_failed
+PASS F.snapshot + 'to=2026-12-01T00:00:00Z' -> 422 validation_failed
+PASS F.snapshot + limit/offset + unrecognized param -> ok
+PASS F.snapshot ?limit=0 -> 422
+PASS F.snapshot ?offset=-1 -> 422
+PASS F.snapshot ?limit=1e1 -> 422
+PASS F.unknown token -> 404 not_found
+PASS F.another user's token -> 404 (even a counterparty)
+PASS F.snapshot without token -> 401
+PASS F.empty snapshot value -> 404 or 422, not 5xx
+PASS F.every first read mints a distinct token
+PASS F.second snapshot reflects the NEW state (999 payment, 777 correction)
+PASS F.default `to` frozen at first read: later payments not paged
+PASS F.token from before reset -> 404
+PASS F.token from before import -> 404 or still valid, never 5xx
+   INFO token across import -> 404
+PASS F.snapshot taken with known_at before the payment is empty and stays empty
+   INFO 300 first reads over 400 payments: 0.1s
+PASS F.300 snapshots over a 400-payment history created, each read < 5s
+PASS F.old tokens remain valid after 300 more snapshots
+== G G_holds
+PASS G.closed_at is null while open; authorization carries closed_at
+PASS G.as_of one µs before creation: held 0
+PASS G.as_of exactly at creation: held 4000, available 6000, balance 10000-1
+PASS G.known_at before the hold was created: hold unknown (held 0)
+PASS G.once creation known, expiry deadline known: as_of beyond deadline with known_at just after creation -> held 0
+PASS G.as_of one µs before the deadline: still held; exactly at deadline: expired (held 0)
+PASS G.future as_of (query beyond now): open hold expires at its deadline
+PASS G.nonfinal capture reduces the hold at capture time and moves the money at the same instant
+PASS G.known_at before the capture was recorded: hold still 4000, total unchanged
+PASS G.void releases the remainder at closed_at (3000 -> 0)
+PASS G.known_at before the void was known: hold still open (3000) until its deadline
+PASS G.captured payment appears exactly once in statements with links (authorization_id)
+PASS G.statement contains money movements only (no authorization/void entries)
+PASS G.final capture: closed_at == capture created_at, remainder released then
+PASS G.expired by the clock: status expired, closed_at == expires_at
+PASS G.history around the expiry instant: held 300 just before, 0 at the deadline
+PASS G.every historical view: balance==total, available==total-held>=0
+PASS G.sum of balances in every historical view == seeded total
+PASS G.seeded holds incl. closed ones accepted by stage 3
+   INFO seeded closed_at: {'o5': '2020-01-01T00:00:00+00:00', 'o4': '2026-10-05T05:36:02.403318+00:00', 'o3': '2026-10-05T05:36:02.403318+00:00', 'o2': '2026-10-05T05:36:02.403318+00:00', 'o1': None}
+PASS G.seeded open hold: closed_at null; seeded expired-by-clock open hold closed_at set
+PASS G.seeded open hold held 2000
+   INFO as_of just before now with seeded open+expired(future expires_at) holds: held 2000 (current held 2000 ) -> see seeded_expired_hold.py (finding S3-1)
+PASS G.seeded open holds are assumed created at reset: before reset shows none
+   INFO seeded hold with created_at -> 204
+PASS G.seeded hold with created_at supplied: held from that instant
+== H G_imports
+PASS H.stage-1 export imports into stage 3 -> 204
+PASS H.balances, tokens, logins preserved
+   INFO imported ada statement: [('p_9be2cc', -700, 9300), ('p_434347', -300, 9000), ('p_eb7e5e', 20, 9020)] opening 10000
+PASS H.imported statement: opening + deltas == closing == balance; ordered by created_at
+PASS H.imported opening balances: ada opened with the seeded 10000 (before any payments)
+PASS H.imported payment created_at preserved (stage-1 receipt unchanged)
+PASS H.as_of at p1's instant includes it; one µs before excludes
+PASS H.imported plain payment is correctable (201, revision 2)
+PASS H.imported request-paying payment correctable; settlement member -> 422 linked_payment_immutable
+PASS H.imported pending request payable
+PASS H.old payment replay 200 identical; settlement replay 200
+PASS H.new default authorization ttl 600 after importing a stage-1 export
+PASS H.sum of totals == seeded total after import and activity
+PASS H.stage-2 export (open/partial/void/expired holds, captures) imports into stage 3 -> 204
+PASS H.imported /me: total/available/held equal the stage-2 values for every user
+   INFO imported closed_at: {'a_2ffde6': ('open', None), 'a_340662': ('expired', '2026-10-05T05:36:04.650+00:00'), 'a_979f91': ('voided', '2026-10-05T05:36:02.650+00:00'), 'a_6e3dc5': ('captured', '2026-10-05T05:36:02.649+00:00'), 'a_fc45ec': ('expired', '2026-10-05T05:36:04.635+00:00')}
+PASS H.imported closed_at: voided has a closed_at, expired == expires_at, captured == last capture created_at, open null
+PASS H.imported captures appear exactly once each in the statement with authorization_id links
+PASS H.imported statement closes at the current balance
+PASS H.imported capture correction -> 422 linked_payment_immutable
+PASS H.imported plain payment correctable
+PASS H.imported hold history: held 0 before a1 creation, 2000-3000 at that instant (stage-2 timestamps are millisecond: the 1000 capture may share the millisecond)
+PASS H.sum of totals == seeded total on imported stage-2 state
+PASS H.imported open hold capturable once after import
+PASS H.stage-3 round trip: import into another process -> 204
+PASS H.stage-3 round trip: every /me (as_of x known_at), statement, revisions and authorization view identical before and after
+PASS H.replays after round trip: payment, correction, authorization, capture -> 200 originals; failed correction key reusable
+PASS H.failed correction key still reusable after import
+PASS H.correction replay after import returns the original revision 200
+   INFO stage-3 state keys: ['currency', 'minor_units', 'authorization_ttl_seconds', 'seq', 'users', 'tokens', 'settlement_operator_ids', 'payments', 'requests', 'splits', 'settlements', 'authorizations', 'idempotency']
+   INFO tamper balance != opening + revisions -> 422
+PASS H.tampered stage-3 state (balance != opening + revisions): 4xx and destination unchanged, never 5xx
+   INFO tamper drop revisions -> 204
+PASS H.tampered stage-3 state (drop revisions): 4xx and destination unchanged, never 5xx
+   INFO tamper null payments -> 422
+PASS H.tampered stage-3 state (null payments): 4xx and destination unchanged, never 5xx
+== I G_scale
+PASS I.reset with 8000 seeded timestamped payments 204 within 10s (0.1s)
+   INFO memory after reset: 
+PASS I.statement deep offset over 8000 payments < 5s (0.00s)
+PASS I.first statement read (builds snapshot) < 5s (0.00s)
+PASS I./me?as_of=2020-01-01T00:00:0 over 8000 payments 200 and < 5s
+PASS I./me?as_of=2026-10-03T14:56:0 over 8000 payments 200 and < 5s
+PASS I./me?known_at=2020-01-01T00:0 over 8000 payments 200 and < 5s
+PASS I./me? over 8000 payments 200 and < 5s
+PASS I.sum invariants in a historical view over 8000 payments
+   INFO 400 snapshots over 8000 payments: 0.2s, memory 
+PASS I.400 snapshots over 8000 payments created; average < 1s
+PASS I.…first and last snapshot page fine
+   INFO 1900 snapshots over 8000 payments, memory 
+PASS I.1900 snapshots of an 8000-entry statement keep memory < 1.5 GiB (bounded snapshots)
+PASS I.300 sequential corrections of one payment, each < 1s (max 0.00s)
+PASS I.revisions list of 301 revisions ordered and complete
+PASS I.100 concurrent statement pages over 8000 payments: all 200, each < 5s (max 0.03s)
+PASS I.100 concurrent historical /me: all 200, each < 5s (max 0.00s)
+   INFO export of big state: 3.8 MB in 0.0s, status 200
+PASS I.export of 8000-payment state with 1900 snapshots+300 corrections < 10s
+PASS I.import into another process 204 < 10s (0.1s)
+PASS I.50 concurrent corrections on distinct payments: all 201 each < 5s
+PASS I.…ada total == 10^9 - sum(500+i), sum preserved
+== J G_fuzz
+PASS J.3000 fuzzed new-endpoint requests @50: zero 5xx
+PASS J.…every 4xx has the standard error body
+PASS J.…invariants after fuzz (ada/bob balances nonneg, sum preserved)
+PASS J.garbage bodies on the new endpoints: no 5xx
+PASS J.correction body > 256 KiB -> 413
+PASS J.corrections stay < 1s while 150 signups hash at 50 concurrency (no hashing under lock); signups all 201 (max corr 0.05s)
+== K G_clock
+PASS K.600 concurrent payments: created_at all distinct (strictly increasing microsecond clock)
+PASS K.…API timestamps have an explicit offset and fraction
+PASS K.statement of 600 payments: oldest first, unique, complete, balance_after strictly decreasing for sender
+PASS K.…statement order == created_at order
+PASS K.recorded_at strictly increases across 40 corrections of one payment
+PASS K.revision list recorded_at strictly increasing
+   INFO server-host skew µs: -474
+PASS K.effective_at == the payment's own created_at (<= now) accepted
+PASS K.effective_at 5 s after the server's clock -> 422
+PASS K.effective_at 100 ms in the past accepted
+
+503 passed, 0 failed

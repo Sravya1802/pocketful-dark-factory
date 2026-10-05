@@ -1,0 +1,33 @@
+== 4 G_scale
+PASS R.reset with 30000 seeded payments 204 < 10s (0.2s)
+   INFO memory after reset: 301.9
+   cycle 0: mem 303 MiB, statement 0.018s
+   cycle 300: mem 307 MiB, statement 0.004s
+   cycle 600: mem 303 MiB, statement 0.003s
+   cycle 900: mem 306 MiB, statement 0.010s
+   cycle 1200: mem 306 MiB, statement 0.004s
+PASS R.1500 (write + snapshot) cycles over 30000 payments survived (no crash)
+   INFO after 1500 snapshots: memory 306 MiB; first-read avg 0.005s max 0.03s; correction max 0.03s
+PASS R.memory after 1500 write+snapshot cycles at 30k payments < 400 MiB
+PASS R.each first read < 5s (max 0.03s) and each correction < 5s (max 0.03s)
+   INFO paging 200 random old snapshots sequentially: avg 0.006s max 0.023s
+PASS R.paging old snapshots (each a different K) < 5s each (max 0.02s)
+   INFO 400 concurrent pages over random old snapshots @50: max 2.08s avg 0.24s statuses [200]
+PASS R.400 concurrent old-snapshot pages @50: all 200 and each < 5s (max 2.08s)
+PASS R.an old snapshot is byte-identical after 50 more payments/corrections at 30k scale
+PASS R.deep offset 29999 on an old snapshot: 200, empty or tail, has_more false past the end
+PASS R.deep offset 30000 on an old snapshot: 200, empty or tail, has_more false past the end
+PASS R.deep offset 100000 on an old snapshot: 200, empty or tail, has_more false past the end
+PASS R.deep offset 1000000000 on an old snapshot: 200, empty or tail, has_more false past the end
+PASS R.100 concurrent first reads @50: all 200, max 0.11s
+   INFO export: 14.9 MB 0.1s mem 304
+PASS R.export < 10s
+PASS R.import into B < 10s and statement views equal
+PASS R.reset with 100000 seeded payments 204 < 10s (0.4s)
+   INFO 100k history, 300 write+snapshot: avg 0.017s max 0.04s mem 317 MiB
+PASS R.100k payments: first reads each < 5s (max 0.04s)
+PASS R.100k payments, 300 snapshots: memory < 600 MiB
+   INFO 200 concurrent old-snapshot pages over 100k @50: max 4.27s avg 0.94s statuses [200]
+PASS R.100k: 200 concurrent old-snapshot pages @50 all 200 and < 5s (max 4.27s)
+
+18 passed, 0 failed
