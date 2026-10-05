@@ -66,6 +66,18 @@ Non-blocking findings were recorded, not hidden: shared salt for identical seede
 anyway in `621342c`), a silent failed Refresh and Accept q-values on stage 2 (follow-ups in
 `evidence/stage-2/verdict.md`).
 
+### Stage 3 at submission close (not submitted)
+
+The band built stage 3 (`959960c`: statements, corrections, historical balances). The analyst's
+110 stage-3 checks passed, and the adversary's oracle fuzz found **0 mismatches in ~94,000
+comparisons** of the corrected ledger. It also found a real defect: statement snapshots retain
+memory per snapshot until the service dies (S3-1, medium), plus two low ones (an expired seeded
+hold viewed historically, RFC 3339 lowercase `t`/`z` and leap seconds). Those findings would have
+blocked acceptance. The adversary committed its report (`af638e1`) but its turn ended without
+messaging the gate, so no verdict was issued before submissions closed. Because stage 3 was never
+accepted, `stage-3/` is not in this repository; its evidence is in `evidence/stage-3/` of the
+band's working history.
+
 ## 5. What we tried that failed, and what we changed
 
 - **Toy rehearsal (4/4 stages, 1 real rework).** The gate ruled before the adversary reported in 4 of
@@ -77,6 +89,9 @@ anyway in `621342c`), a silent failed Refresh and Accept q-values on stage 2 (fo
   operator restart of BAND then interrupted a seat mid-turn, so that run was abandoned (development
   runs are not judged) and the run was restarted in a fresh room and repository. Fix: run only on AC
   power with all seats Connected; never restart BAND while any seat is still acting.
+- **A seat can finish its work but end its turn without the handoff message** (stage 3: the
+  adversary committed its report but never messaged the gate). Next: the coordinator should poll
+  for a committed report when a verdict is overdue.
 - **Claude usage limits stop seats and nothing wakes them.** All five seats share one subscription.
   See §6.
 

@@ -18,7 +18,7 @@ Track: **pocketful** · Team: Sravya Rachakonda (solo) · WeAreDevelopers x BAND
    | 1 | `stage-1/` | `621342c` | 3 (2 real rejections) | claims stage 1 |
    | 2 | `stage-2/` | `92bbbf9` | 1 | claims stage 2 |
 
-   Stage 3 was in analysis when submissions closed and is not included.
+   Stage 3 was built and attacked but not accepted before submissions closed (see FACTORY.md §4), so it is not included.
 
 3. **Run it.** Each folder has a `Dockerfile` and `RUN.md`. For example:
    ```sh
