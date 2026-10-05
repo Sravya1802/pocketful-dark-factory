@@ -45,3 +45,4 @@ Run start: 2026-10-04 03:10 PDT-local (host TZ; see `date` below)
 - rework loop 1: handoff coordinator -> builder, from 959960c, 23:30:25 CDT
 - builder delivered rework 1 rev c5b8629 (fixes K1-K3; self-reported API 388/388, UI 99/99, shipped 6/6) 23:39:35 CDT
 - handoff coordinator -> adversary and gate, stage 3 re-verify, rev c5b8629, 23:39:35 CDT
+- adversary replied 'already handled' to round-2 handoff (stale reading); resent once with clarification 00:26:28 CDT
