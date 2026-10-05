@@ -1,0 +1,432 @@
+== 1 U1_decimal
+PASS U1.amount '15' submits 1500 minor units exactly
+PASS U1.amount '15.00' submits 1500 minor units exactly
+PASS U1.amount '15.5' submits 1550 minor units exactly
+PASS U1.amount '0.29' submits 29 minor units exactly
+PASS U1.amount '1.15' submits 115 minor units exactly
+PASS U1.amount '0.07' submits 7 minor units exactly
+PASS U1.amount '19.99' submits 1999 minor units exactly
+PASS U1.amount '4.35' submits 435 minor units exactly
+PASS U1.amount '1.10' submits 110 minor units exactly
+PASS U1.amount '8.20' submits 820 minor units exactly
+PASS U1.amount '0.01' submits 1 minor units exactly
+PASS U1.amount '1000.00' submits 100000 minor units exactly
+PASS U1.amount '10000000' submits 1000000000 minor units exactly
+PASS U1.amount '10000000.00' submits 1000000000 minor units exactly
+PASS U1.amount '00015.50' submits 1550 minor units exactly
+PASS U1.amount '0.50' submits 50 minor units exactly
+PASS U1.amount '15.005' -> shows pay-error and sends NO request
+PASS U1.amount '15.001' -> shows pay-error and sends NO request
+PASS U1.amount '0.001' -> shows pay-error and sends NO request
+PASS U1.amount 'abc' -> shows pay-error and sends NO request
+PASS U1.amount '' -> shows pay-error and sends NO request
+PASS U1.amount '1e2' -> shows pay-error and sends NO request
+PASS U1.amount '1E2' -> shows pay-error and sends NO request
+PASS U1.amount '1e-2' -> shows pay-error and sends NO request
+PASS U1.amount 'NaN' -> shows pay-error and sends NO request
+PASS U1.amount 'Infinity' -> shows pay-error and sends NO request
+PASS U1.amount '--5' -> shows pay-error and sends NO request
+PASS U1.amount '15.0.0' -> shows pay-error and sends NO request
+PASS U1.amount '1 000' -> shows pay-error and sends NO request
+PASS U1.amount '15,00' -> shows pay-error and sends NO request
+PASS U1.amount '1,5' -> shows pay-error and sends NO request
+PASS U1.amount '1,000.00' -> shows pay-error and sends NO request
+PASS U1.amount '$15' -> shows pay-error and sends NO request
+PASS U1.amount '15 EUR' -> shows pay-error and sends NO request
+PASS U1.amount '0x10' -> shows pay-error and sends NO request
+PASS U1.amount '٣' -> shows pay-error and sends NO request
+PASS U1.amount '１５' -> shows pay-error and sends NO request
+PASS U1.amount '15..' -> shows pay-error and sends NO request
+PASS U1.amount '..5' -> shows pay-error and sends NO request
+PASS U1.amount '-1' -> shows pay-error and sends NO request
+PASS U1.amount '-0.50' -> shows pay-error and sends NO request
+   INFO amount '15.': request=None error_shown=True
+   INFO amount '.5': request=None error_shown=True
+   INFO amount ' 15 ': request={'to_handle': 'bob', 'amount': 1500, 'note': '', 'visibility': 'public'} error_shown=False
+   INFO amount '+15': request=None error_shown=True
+   INFO amount '0': request=None error_shown=True
+   INFO amount '0.00': request=None error_shown=True
+   INFO amount '10000000.01': request=None error_shown=True
+   INFO amount '10000000.00001': request=None error_shown=True
+   INFO amount '99999999999999999999': request=None error_shown=True
+   INFO amount '9007199254740993': request=None error_shown=True
+   INFO amount '1000000000': request=None error_shown=True
+PASS U1.amount '0' never charges anything: either no request or server-refused with pay-error
+PASS U1.amount '0.00' never charges anything: either no request or server-refused with pay-error
+PASS U1.amount '10000000.01' never charges anything: either no request or server-refused with pay-error
+PASS U1.amount '99999999999999999999' never charges anything: either no request or server-refused with pay-error
+PASS U1.amount '9007199254740993' never charges anything: either no request or server-refused with pay-error
+PASS U1.' 15 ' either trimmed to 1500 or rejected, never misparsed
+PASS U1.'+15' either 1500 or rejected, never misparsed
+PASS U1.90071992547409.93 never sent as a rounded float (rejected or exact 9007199254740993->over-limit)
+PASS U1.no dialogs / script execution
+PASS U1.JPY(0) amount '15' -> 15
+PASS U1.JPY(0) amount '15.0' rejected locally (too many decimals)
+PASS U1.JPY(0) amount '15.5' rejected locally (too many decimals)
+PASS U1.JPY(0) amount '1200' -> 1200
+PASS U1.JPY wallet-balance format
+PASS U1.JPY wallet-balance data-amount == API total
+PASS U1.JPY activity amounts formatted with 0 decimals
+PASS U1.BHD(3) amount '1.234' -> 1234
+PASS U1.BHD(3) amount '1.2345' rejected locally (too many decimals)
+PASS U1.BHD(3) amount '1.5' -> 1500
+PASS U1.BHD(3) amount '15' -> 15000
+PASS U1.BHD(3) amount '0.001' -> 1
+PASS U1.BHD wallet-balance format
+PASS U1.BHD wallet-balance data-amount == API total
+PASS U1.BHD activity amounts formatted with 3 decimals
+== 2 U2_pay_flow
+PASS U2.pay success: balance fell once by 1500
+PASS U2.pay success: feed has exactly one item, no reload
+PASS U2.feed item data-visibility=private, note exact, amount exactly '15.00 EUR', parties contain both handles
+PASS U2.form values kept after success
+PASS U2.pay-error absent after success
+PASS U2.unchanged resubmission x2 sends no new payment (balance falls once, one feed item, no pay-error)
+   INFO POSTs after unchanged resubmits: 2 ['10aa1d9c', '10aa1d9c', '10aa1d9c']
+PASS U2.server has exactly one payment
+PASS U2.changed field -> new payment (balance fell twice, two feed items, different key)
+PASS U2.newest first in DOM
+PASS U2.revert to earlier values after a change = a NEW payment (3 payments)
+PASS U2.double-click submit moves money once
+PASS U2.unknown handle: pay-error shown with text, inputs preserved
+PASS U2.self payment: pay-error shown with text, inputs preserved
+PASS U2.empty handle: pay-error shown with text, inputs preserved
+PASS U2.leading @ in handle accepted (stripped)
+   INFO ' BOB ' -> {'to_handle': 'BOB', 'amount': 100, 'note': 'case', 'visibility': 'private'} | error: No one on Pocketful has that handle. Check the spelling and try again.
+PASS U2.note 201 chars -> pay-error (server or client)
+PASS U2.note of 200 emoji accepted
+== 3 U3_refused_and_stale
+PASS U3.UI still shows stale 10.00 before refresh
+PASS U3.refused (insufficient funds) shows pay-error and NOT pay-uncertain
+PASS U3.…balance refreshed to 1.00 and inputs preserved
+PASS U3.…feed refreshed (other client's payment appears)
+PASS U3.after funds arrive, same unchanged form succeeds, pay-error cleared, money moves once
+PASS U3.hold seeded: wallet-available 20.00 / wallet-balance 100.00 / wallet-held 80.00 with data-amount
+PASS U3.available is the headline: font size larger than total and held
+PASS U3.payment above available (but within total) refused with pay-error
+PASS U3.payment == available succeeds; available 0, held still 80.00
+PASS U3.after void elsewhere + wallet-refresh: held disappears (absent), available 80.00
+== 4 U4_lost_responses
+PASS U4.lost after commit: pay-uncertain visible with text, pay-error NOT shown
+PASS U4.…form still filled
+PASS U4.…the payment really committed server-side (once)
+PASS U4.retry sends the SAME Idempotency-Key and byte-identical body (as JSON value)
+PASS U4.retry success: pay-uncertain and pay-error gone
+PASS U4.…money moved exactly once (balance - 12.34), one feed item, balance refreshed
+PASS U4.…server still has exactly one payment
+PASS U4.lost before server: pay-uncertain (not pay-error)
+PASS U4.retry after never-reached: exactly one more payment, same key
+PASS U4.uncertain again
+PASS U4.changing the form after uncertainty creates a NEW key (and a new payment)
+   INFO after change-while-uncertain: pay-uncertain visible: False | balance delta: 3134
+   INFO 503 response -> uncertain: True error: False
+PASS U4.5xx from server: some error/uncertain state shown (not silent success)
+PASS U4.non-JSON 200 body: no crash, uncertain/error shown
+== 5 U5_refresh_latest_wins
+PASS U5.second (faster) refresh shows the NEW balance
+PASS U5.the delayed OLDER response does not overwrite the newer one (latest refresh wins)
+PASS U5.…feed also keeps the newer state (1 payment)
+PASS U5.refresh did not clear the pay form
+PASS U5.second scenario (older /me slower than newer): final balance == server truth
+PASS U5.…final feed == server truth
+PASS U5.5 rapid refreshes with random delays: UI ends on the latest server state
+== 6 U6_requests_screen
+PASS U6.pay/decline only on pending incoming; cancel only on pending outgoing
+PASS U6.request-amount exact formatted; data-status attrs
+PASS U6.incoming/outgoing placed in the right containers
+PASS U6.request cancelled elsewhere: pay refused shows request-error
+PASS U6.…stale pay button disappears and status shows cancelled
+PASS U6.…no money moved
+PASS U6.pay request success: status paid, buttons gone, balance reflects, error cleared
+PASS U6.balance shown on requests page matches
+PASS U6.cancel outgoing: status cancelled
+PASS U6.insufficient funds on request pay -> request-error, request stays pending with pay button
+PASS U6.after funding, retry pays it; request-error cleared
+   INFO after lost request-pay response: request-error visible: False | text: None | pay-uncertain: False
+   INFO request-uncertain element visible: False
+PASS U6.request-pay lost after commit then retried: same key reused and money moved once
+PASS U6.…ends in paid state without error
+PASS U6.empty-requests shown when both lists empty
+PASS U6.request form sends 420 and keeps values; request-error absent
+   INFO request form unchanged resubmit POSTs: 1
+PASS U6.unchanged request resubmit creates no second request
+PASS U6.request 4.205 -> request-error, no request
+PASS U6.request from self -> request-error
+PASS U6.new request visible on /requests after navigation (outgoing, pending, cancel button)
+== 7 U7_split
+PASS U7.preview 10.00 / 'ada,bob,cy' == server rule ['3.34 EUR', '3.33 EUR', '3.33 EUR']
+PASS U7.preview 0.01 / 'ada,bob,cy' == server rule ['0.01 EUR', '0.00 EUR', '0.00 EUR']
+PASS U7.preview 0.10 / 'ada,bob,cy' == server rule ['0.04 EUR', '0.03 EUR', '0.03 EUR']
+PASS U7.preview 9.99 / 'ada,bob,cy' == server rule ['3.33 EUR', '3.33 EUR', '3.33 EUR']
+PASS U7.preview 0.05 / 'ada,bob,cy,dee,eve' == server rule ['0.01 EUR', '0.01 EUR', '0.01 EUR', '0.01 EUR', '0.01 EUR']
+PASS U7.preview 10 / 'bob,cy,dee' == server rule ['3.34 EUR', '3.33 EUR', '3.33 EUR']
+PASS U7.preview 100000.00 / 'cy,bob,ada' == server rule ['33333.34 EUR', '33333.33 EUR', '33333.33 EUR']
+PASS U7.preview 0.07 / 'bob, cy , dee' == server rule ['0.03 EUR', '0.02 EUR', '0.02 EUR']
+PASS U7.preview 1.00 / 'ada' == server rule ['1.00 EUR']
+PASS U7.preview 1.00 / 'bob' == server rule ['1.00 EUR']
+PASS U7.preview 0.02 / 'ada,bob,cy,dee,eve' == server rule ['0.01 EUR', '0.01 EUR', '0.00 EUR', '0.00 EUR', '0.00 EUR']
+PASS U7.preview 10000000.00 / 'ada,bob,cy' == server rule ['3333333.34 EUR', '3333333.33 EUR', '3333333.33 EUR']
+PASS U7.preview 0.29 / 'ada,bob,cy' == server rule ['0.10 EUR', '0.10 EUR', '0.09 EUR']
+PASS U7.preview 1.15 / 'bob,cy' == server rule ['0.58 EUR', '0.57 EUR']
+PASS U7.submit 10.00 / 'ada,bob,cy': body participant order & minor-unit amount, preview shares == server-created requests
+PASS U7.…no split-error shown on success; preview still shows shares
+   INFO split unchanged resubmit POSTs: 1 | requests now: 2
+PASS U7.submit 0.10 / 'cy,bob,ada': body participant order & minor-unit amount, preview shares == server-created requests
+PASS U7.…no split-error shown on success; preview still shows shares
+   INFO split unchanged resubmit POSTs: 1 | requests now: 2
+PASS U7.submit 0.05 / 'bob,cy,dee,eve': body participant order & minor-unit amount, preview shares == server-created requests
+PASS U7.…no split-error shown on success; preview still shows shares
+   INFO split unchanged resubmit POSTs: 1 | requests now: 4
+PASS U7.unknown handle: split-error shown (client-side or server refusal), form preserved
+PASS U7.duplicate: split-error shown (client-side or server refusal), form preserved
+PASS U7.empty handles: split-error shown (client-side or server refusal), form preserved
+PASS U7.bad amount: split-error shown (client-side or server refusal), form preserved
+PASS U7.bad amount: no request sent
+PASS U7.3 decimals: split-error shown (client-side or server refusal), form preserved
+PASS U7.3 decimals: no request sent
+PASS U7.zero amount: split-error shown (client-side or server refusal), form preserved
+PASS U7.only commas: split-error shown (client-side or server refusal), form preserved
+   INFO preview for 'bob,,cy': @bob | 5.00 EUR | @cy | 5.00 EUR
+   INFO preview for duplicate handles: Shares appear here | Each person can appear only once.
+   INFO preview for amount 1e2: Shares appear here | Enter the total and the people sharing it to see who owes wha
+   INFO preview for 0.001: Shares appear here | Enter the total and the people sharing it to see who owes wha
+PASS U7.JPY split preview formats with 0 decimals
+PASS U7.BHD split preview formats with 3 decimals
+== 8 U8_xss_session
+PASS U8.stored note #0 rendered as exact text (no markup interpretation)
+PASS U8.stored note #1 rendered as exact text (no markup interpretation)
+PASS U8.stored note #2 rendered as exact text (no markup interpretation)
+PASS U8.stored note #3 rendered as exact text (no markup interpretation)
+PASS U8.stored note #4 rendered as exact text (no markup interpretation)
+PASS U8.stored note #5 rendered as exact text (no markup interpretation)
+PASS U8.no script executed / no injected element after loading feed
+PASS U8.display name with markup shown as text in current-user
+PASS U8.requests/authorizations/split pages: no script executed, no injected nodes
+PASS U8.handle with markup reflected in error as text only
+PASS U8.signup with markup display name: rendered as text, no execution
+   INFO headers: {'content-security-policy': "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'none'; form", 'x-content-type-options': 'nosniff', 'referrer-policy': 'no-referrer', 'cache-control': 'no-cache'}
+PASS U8.Content-Security-Policy header present and forbids inline script (no 'unsafe-inline' in script-src) 
+PASS U8.X-Content-Type-Options nosniff
+PASS U8.login next='//evil.example.com/x': stays on own origin, no script
+PASS U8.login next='https://evil.example.com/': stays on own origin, no script
+PASS U8.login next='javascript:alert(1)': stays on own origin, no script
+PASS U8.login next='/\\evil.example.com': stays on own origin, no script
+PASS U8.login next='%2F%2Fevil.example.com': stays on own origin, no script
+PASS U8.login?next=/requests lands on /requests
+== 9 U9_session
+PASS U9.signed-out visit to / redirects to /login
+PASS U9.signed-out visit to /requests redirects to /login
+PASS U9.signed-out visit to /split redirects to /login
+PASS U9.signed-out visit to /authorizations redirects to /login
+PASS U9.login page has no current-user when signed out
+PASS U9.wrong password shows auth-error; fields: password kept? email kept
+PASS U9.auth-error absent after success; current-user text contains display name; current-handle exactly 'ada'
+PASS U9.signed in: / shows current-user + logout-button + current-handle
+PASS U9.signed in: /requests shows current-user + logout-button + current-handle
+PASS U9.signed in: /split shows current-user + logout-button + current-handle
+PASS U9.signed in: /authorizations shows current-user + logout-button + current-handle
+PASS U9.reload keeps session
+PASS U9.second tab shares session
+PASS U9.logout lands on login, session cleared
+PASS U9.back after logout does not expose wallet data
+PASS U9.signup short password: auth-error shown, still on /signup, inputs kept
+PASS U9.signup bad email: auth-error shown, still on /signup, inputs kept
+PASS U9.signup taken email: auth-error shown, still on /signup, inputs kept
+PASS U9.signup taken handle (ada): auth-error shown, still on /signup, inputs kept
+PASS U9.signup success: signed in, handle derived 'fresh_user', balance 0.00 EUR, empty-activity
+PASS U9.wallet-held absent when zero
+   INFO after server reset (token dead) refresh -> http://127.0.0.1:18300/login?next=%2F&ended=1
+PASS U9.invalid token -> sent to /login (not a blank/broken page)
+   INFO pay with dead token -> url http://127.0.0.1:18300/login?next=%2F&ended=1 | error: None
+PASS U9.pay with dead token: user ends at /login or sees an error; never silent
+PASS U9.drafts kept across forced re-login (pay form refilled)
+== 10 U10_upgrade
+PASS U10.lost after commit before upgrade: pay-uncertain
+PASS U10.export A -> import B 204
+PASS U10.signed in still (no redirect to /login), session untouched
+PASS U10.retry recovered the ORIGINAL payment: pay-uncertain and pay-error gone
+PASS U10.…balance reflects imported state (debited exactly once) and feed has exactly one payment
+PASS U10.…form intact
+PASS U10.…B has exactly one payment
+PASS U10.pending request pays through the UI against the upgraded service (paid)
+PASS U10.true stage-1 export imports into stage-2 (B)
+PASS U10.browser holding a stage-1-issued token is signed in on stage-2 UI after import
+PASS U10.…balance/available/total consistent, held absent
+   INFO fresh submit of same body from the UI generates a NEW key (cannot know the lost key) -> ad9feb285f0f385415bac83a68de7e9f
+== 11 U11_layout_a11y
+PASS U11.375px /: no horizontal page scroll (scrollWidth 375 <= 375)
+PASS U11.375px /: no element overflows the viewport
+PASS U11.375px /requests: no horizontal page scroll (scrollWidth 375 <= 375)
+PASS U11.375px /requests: no element overflows the viewport
+PASS U11.375px /split: no horizontal page scroll (scrollWidth 375 <= 375)
+PASS U11.375px /split: no element overflows the viewport
+PASS U11.375px /authorizations: no horizontal page scroll (scrollWidth 375 <= 375)
+PASS U11.375px /authorizations: no element overflows the viewport
+PASS U11.375px /login: no horizontal page scroll (scrollWidth 375 <= 375)
+PASS U11.375px /login: no element overflows the viewport
+PASS U11.375px /signup: no horizontal page scroll (scrollWidth 375 <= 375)
+PASS U11.375px /signup: no element overflows the viewport
+PASS U11.1280px /: no horizontal page scroll (scrollWidth 1280 <= 1280)
+PASS U11.1280px /: no element overflows the viewport
+PASS U11.1280px /requests: no horizontal page scroll (scrollWidth 1280 <= 1280)
+PASS U11.1280px /requests: no element overflows the viewport
+PASS U11.1280px /split: no horizontal page scroll (scrollWidth 1280 <= 1280)
+PASS U11.1280px /split: no element overflows the viewport
+PASS U11.1280px /authorizations: no horizontal page scroll (scrollWidth 1280 <= 1280)
+PASS U11.1280px /authorizations: no element overflows the viewport
+PASS U11.1280px /login: no horizontal page scroll (scrollWidth 1280 <= 1280)
+PASS U11.1280px /login: no element overflows the viewport
+PASS U11.1280px /signup: no horizontal page scroll (scrollWidth 1280 <= 1280)
+PASS U11.1280px /signup: no element overflows the viewport
+PASS U11.320px /: no horizontal page scroll (scrollWidth 320 <= 320)
+PASS U11.320px /: no element overflows the viewport
+PASS U11.320px /requests: no horizontal page scroll (scrollWidth 320 <= 320)
+PASS U11.320px /requests: no element overflows the viewport
+PASS U11.320px /split: no horizontal page scroll (scrollWidth 320 <= 320)
+PASS U11.320px /split: no element overflows the viewport
+PASS U11.320px /authorizations: no horizontal page scroll (scrollWidth 320 <= 320)
+PASS U11.320px /authorizations: no element overflows the viewport
+PASS U11.320px /login: no horizontal page scroll (scrollWidth 320 <= 320)
+PASS U11.320px /login: no element overflows the viewport
+PASS U11.320px /signup: no horizontal page scroll (scrollWidth 320 <= 320)
+PASS U11.320px /signup: no element overflows the viewport
+PASS U11./login: every visible input has a label/aria-label
+PASS U11./login: labels are visible text (not placeholder-only)
+PASS U11./login: 27 focusable elements all show a visible focus indicator (outline or ring)
+   INFO /login contrast: 11 text nodes, min ratio 6.57
+PASS U11./login: all text meets WCAG AA contrast
+PASS U11./: every visible input has a label/aria-label
+PASS U11./: labels are visible text (not placeholder-only)
+PASS U11./: 29 focusable elements all show a visible focus indicator (outline or ring)
+   INFO / contrast: 40 text nodes, min ratio 6.8
+PASS U11./: all text meets WCAG AA contrast
+PASS U11./requests: every visible input has a label/aria-label
+PASS U11./requests: labels are visible text (not placeholder-only)
+PASS U11./requests: 28 focusable elements all show a visible focus indicator (outline or ring)
+   INFO /requests contrast: 34 text nodes, min ratio 6.34
+PASS U11./requests: all text meets WCAG AA contrast
+PASS U11./split: every visible input has a label/aria-label
+PASS U11./split: labels are visible text (not placeholder-only)
+PASS U11./split: 28 focusable elements all show a visible focus indicator (outline or ring)
+   INFO /split contrast: 23 text nodes, min ratio 6.57
+PASS U11./split: all text meets WCAG AA contrast
+PASS U11./authorizations: every visible input has a label/aria-label
+PASS U11./authorizations: labels are visible text (not placeholder-only)
+PASS U11./authorizations: 28 focusable elements all show a visible focus indicator (outline or ring)
+   INFO /authorizations contrast: 44 text nodes, min ratio 6.57
+PASS U11./authorizations: all text meets WCAG AA contrast
+PASS U11./signup: every visible input has a label/aria-label
+PASS U11./signup: labels are visible text (not placeholder-only)
+PASS U11./signup: 27 focusable elements all show a visible focus indicator (outline or ring)
+   INFO /signup contrast: 14 text nodes, min ratio 6.57
+PASS U11./signup: all text meets WCAG AA contrast
+== 12 U12_states_network
+PASS U12.no request leaves the origin on any screen (no CDN/fonts/analytics)
+PASS U12.no external URLs in HTML (src/href/@import)
+PASS U12.CSS has no external @import/url()
+PASS U12.empty-activity visible, activity-list absent or empty
+PASS U12.empty-authorizations visible
+   INFO refresh with server down shows: Skip to content | Pocketful | Wallet | Requests | Split | Holds | Ada | ada | Log out | Wallet |  | Available to spend |  | 100.00 EUR |  | Total balance | 100.00 EUR |  | Updated today at 10:28 PM. |  | Refresh | Send money | To | @ | Amount | EUR | W
+FAIL U12.server unreachable on refresh: balance not blanked/zeroed, some error message shown  :: Skip to content
+Pocketful
+Wallet
+Requests
+Split
+Holds
+Ada
+ada
+Log out
+Wallet
+
+Available to spend
+
+100.00 EUR
+
+Total balance
+100.00 EUR
+
+Updated today at 10:28 PM.
+
+Refresh
+Send money
+To
+@
+Amount
+EUR
+W
+   INFO during slow load: Skip to content | Pocketful | Wallet | Requests | Split | Holds | Ada | ada | Log out | Wallet |  | Available to spend |  | 100.00 EUR |  | Total bala
+PASS U12.loading state while /me is slow: page not blank and no fake '0.00' balance shown
+   INFO GET /nope -> 404
+   INFO browser GET unknown page status: 404 | body: Skip to content Pocketful Log in Sign up We couldn’t find that page The link may
+== 13 U13_authorizations_ui
+PASS U13.statuses: open/open/captured/voided/expired(clock)
+PASS U13.controls only where specified: capture on incoming open; void on outgoing open
+PASS U13.authorization-captured only when captured
+PASS U13.amounts exact: authorization-amount '20.00 EUR'; capture input pre-filled with remaining decimal '20.00'; expires text RFC3339
+   INFO seeded captured hold (amount 3.00, no captured_amount in fixture) shows captured: 0.00 EUR
+PASS U13.list newest first in DOM (== API order)
+PASS U13.hold headline: wallet-available = 100.00 - 15.00 = 85.00; held 15.00; total 100.00
+PASS U13.capture amount '20.001' -> authorization-error shown, authorization stays open
+PASS U13.capture amount '20.001': no request sent
+PASS U13.capture amount 'abc' -> authorization-error shown, authorization stays open
+PASS U13.capture amount 'abc': no request sent
+PASS U13.capture amount '' -> authorization-error shown, authorization stays open
+PASS U13.capture amount '': no request sent
+PASS U13.capture amount '-1' -> authorization-error shown, authorization stays open
+PASS U13.capture amount '0' -> authorization-error shown, authorization stays open
+PASS U13.capture amount '20.01' -> authorization-error shown, authorization stays open
+PASS U13.capture amount '1e1' -> authorization-error shown, authorization stays open
+PASS U13.partial capture 7.50 sends {amount:750} (final default) and shows captured; authorization-error cleared
+PASS U13.balances after partial final capture (ada +7.50, bob released the rest)
+PASS U13.after capture the capture controls disappear
+PASS U13.void outgoing -> voided, controls gone, held absent, available == total
+PASS U13.authorize 25.50 sends 2550 private; list shows it open with controls; balances updated without reload
+PASS U13.…empty-authorizations gone; form values retained
+   INFO authorize unchanged resubmit POSTs: 1
+PASS U13.unchanged authorise resubmission creates no second hold
+PASS U13.authorize amount '0' refused with authorize-error (insufficient funds / validation)
+PASS U13.authorize amount 'abc' refused with authorize-error (insufficient funds / validation)
+PASS U13.authorize amount '1.005' refused with authorize-error (insufficient funds / validation)
+PASS U13.authorize amount '1e2' refused with authorize-error (insufficient funds / validation)
+PASS U13.authorize amount '99999.00' refused with authorize-error (insufficient funds / validation)
+PASS U13.authorize amount '-5' refused with authorize-error (insufficient funds / validation)
+PASS U13.authorize amount '' refused with authorize-error (insufficient funds / validation)
+PASS U13.authorize exactly the available 74.50 succeeds; available 0.00
+PASS U13.nothing available -> authorize-error, inputs preserved
+   INFO lost authorize response: error elem: False | uncertain-ish text: ['couldn’t confirm']
+PASS U13.authorize retry after lost response reuses the same key and creates exactly one hold
+PASS U13.capture of a hold voided elsewhere -> authorization-error and stale controls disappear (status voided)
+PASS U13.fresh hold present with expires text
+   INFO 5.5s later (no user action): status expired | held present: False
+PASS U13.page reflects expiry without a reload (builder says one scheduled refresh)
+PASS U13.after reload: expired, controls gone
+== 14 U14_misc
+PASS U14.wallet-refresh keeps both forms
+PASS U14.request submit (which refreshes the page data) keeps the pay form filled
+PASS U14.refresh with new remote payment updates feed/balance and keeps typed text
+PASS U14.Enter key in the amount field submits the pay form
+PASS U14.private payment between others NOT shown to ada
+PASS U14.activity item for incoming payment present and labelled
+PASS U14.Accept 'text/html' on /requests -> html
+PASS U14.Accept 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' on /requests -> html
+PASS U14.Accept 'application/json' on /requests -> json
+PASS U14.Accept '*/*' on /requests -> json
+PASS U14.Accept None on /requests -> json
+FAIL U14.Accept 'application/json, text/html;q=0.5' on /requests -> json  :: ('text/html; charset=utf-8', b'<!doctype html>\n<html lang="en">\n<head>\n')
+FAIL U14.Accept 'text/html;q=0.1, application/json' on /requests -> json  :: ('text/html; charset=utf-8', b'<!doctype html>\n<html lang="en">\n<head>\n')
+PASS U14.Accept 'text/html' on /authorizations -> html
+PASS U14.Accept 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' on /authorizations -> html
+PASS U14.Accept 'application/json' on /authorizations -> json
+PASS U14.Accept '*/*' on /authorizations -> json
+PASS U14.Accept None on /authorizations -> json
+FAIL U14.Accept 'application/json, text/html;q=0.5' on /authorizations -> json  :: ('text/html; charset=utf-8', b'<!doctype html>\n<html lang="en">\n<head>\n')
+FAIL U14.Accept 'text/html;q=0.1, application/json' on /authorizations -> json  :: ('text/html; charset=utf-8', b'<!doctype html>\n<html lang="en">\n<head>\n')
+   INFO GET / with Accept json -> text/html; charset=utf-8
+PASS U14.unauthenticated JSON GET /requests -> 401 (not redirect/HTML)
+   INFO unauth HTML GET /requests -> 200 text/html; charset=utf-8
+   INFO /assets/app.css 200
+   INFO /assets/app.js 200
+   INFO /assets/icon.svg 200
+   INFO /favicon.ico 404
+
+336 passed, 5 failed

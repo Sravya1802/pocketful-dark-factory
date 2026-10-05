@@ -1,0 +1,29 @@
+fixture 7.1 MB, 30000 payments
+reset 204 0.2s mem 75.3MiB / 2GiB
+PASS reset within 10s
+  cycle 0: correction 201 0.019s, statement 200 0.012s, snapshots 1, mem 83.08MiB / 2GiB
+  cycle 120: correction 201 0.007s, statement 200 0.024s, snapshots 121, mem 762MiB / 2GiB
+  cycle 240: correction 201 0.008s, statement 200 0.006s, snapshots 241, mem 1.246GiB / 2GiB
+  cycle 360: correction 201 0.078s, statement 200 0.007s, snapshots 361, mem 1.508GiB / 2GiB
+Traceback (most recent call last):
+  File "/Users/lakshmisravyarachakonda/VS CODE/Hackathons/bands/band-work/result/evidence/stage-3/attacks/scale_snapshots.py", line 25, in <module>
+    t = time.time(); ss, st = req(URL, "GET", "/statement?limit=50", token=ta, timeout=30); lat_s.append(time.time() - t)
+                              ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/lakshmisravyarachakonda/VS CODE/Hackathons/bands/band-work/result/evidence/stage-3/attacks/s3lib.py", line 32, in req
+    def req(base, *a, **k): s, j, t, d = raw(base, *a, **k); return s, j
+                                         ~~~^^^^^^^^^^^^^^^
+  File "/Users/lakshmisravyarachakonda/VS CODE/Hackathons/bands/band-work/result/evidence/stage-3/attacks/s3lib.py", line 20, in raw
+    r = c.getresponse(); txt = r.read()
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/client.py", line 1450, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/client.py", line 336, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/http/client.py", line 297, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.14/3.14.4/Frameworks/Python.framework/Versions/3.14/lib/python3.14/socket.py", line 725, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+ConnectionResetError: [Errno 54] Connection reset by peer

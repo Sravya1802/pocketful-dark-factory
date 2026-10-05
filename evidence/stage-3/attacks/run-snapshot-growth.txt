@@ -1,0 +1,5 @@
+none      : memory      42 ->      43 MiB over 200 snapshots of a 10000-payment history =   0.00 MiB per snapshot
+payment   : memory      42 ->     317 MiB over 200 snapshots of a 10000-payment history =   1.38 MiB per snapshot
+failed403 : memory      42 ->      43 MiB over 200 snapshots of a 10000-payment history =   0.01 MiB per snapshot
+correction: memory      42 ->     309 MiB over 200 snapshots of a 10000-payment history =   1.33 MiB per snapshot
+FAIL: unbounded growth per snapshot in modes payment, correction
