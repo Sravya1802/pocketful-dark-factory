@@ -164,7 +164,7 @@ Time (CDT, Oct 4), excluding the usage-limit stall from 03:29 to 13:12:
 | Review changed the work | G1–G3 and H1 above: adversary report → gate reproduction → builder fix commit |
 | The gate accepted exactly what ships | `evidence/stage-1/verdict*.md`, `evidence/stage-2/verdict.md` name the full revision |
 | The gate waited for the adversary | verdicts cite the adversary report on the same revision; gate "waiting for adversary" messages in the room |
-| Stages reproduce from a clean clone | isolated harness on a fresh clone: `stage-1/` claims 1, `stage-2/` claims 2, `stage-3/` claims 3 |
+| Stages reproduce from a clean clone | fresh GitHub clone, isolated harness: `stage-1/`…`stage-4/` each claim their stage; every stage starts and serves `/health` with `--network none` | `evidence/final-check/` |
 | Costs are measured | §7 |
 | Mandates are generic | no track vocabulary in `mandates/` (checked against all three track lists) |
 
