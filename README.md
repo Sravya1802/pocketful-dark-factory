@@ -34,5 +34,5 @@ Track: **pocketful** · Team: Sravya Rachakonda (solo) · WeAreDevelopers x BAND
    - `FACTORY.md`: setup, design, measured cost, mistakes caught, honest limitations
    - `factory/`: the dispatch message and the operator scripts used around the run
 5. **Video.** See the lablab submission.
-6. **Known limitations.** Two stages of four. Three human messages in the room: the dispatch
-   and two factual "resume after Claude usage limit" notes (details in FACTORY.md §6).
+6. **Known limitations.** Two stages of four. Four human messages in the room: the dispatch
+   and three factual resume notes (usage limits, a missed handoff) (details in FACTORY.md §6).

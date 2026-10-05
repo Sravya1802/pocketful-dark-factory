@@ -97,12 +97,18 @@ band's working history.
 
 ## 6. Human input in the submitted run (disclosed)
 
-The room holds three human messages:
+The room holds four human messages:
 1. The dispatch (the task, all four stages).
 2. 13:12 CDT Oct 4: a factual resume note. The builder had stopped on a Claude usage limit 25 minutes
    after the dispatch; the limit reset, but nothing re-woke the seat. Wording: the seat stopped on a
    usage limit, the limit has reset, continue, the task is unchanged.
 3. 21:13 CDT Oct 4: the same note after the analyst stopped on a usage limit during stage 3.
+4. 23:17 CDT Oct 4: a note that the adversary had committed its stage-3 report but its turn ended
+   without messaging the gate, so the gate was still waiting.
+
+One operator action outside the room: at 00:07 CDT Oct 5 the adversary's runtime turn was hung with
+three messages queued behind it, and was interrupted with `band runtime interrupt` (no message, no
+content). The seat then picked up its queued handoff by itself.
 
 No message steered the work, approved anything, or hinted at a fix. Every rejection and repair above
 came from the seats alone.
