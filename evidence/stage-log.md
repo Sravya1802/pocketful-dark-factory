@@ -38,3 +38,5 @@ Run start: 2026-10-04 03:10 PDT-local (host TZ; see `date` below)
 - resend coordinator -> analyst stage 3 after usage-limit stop, 21:14:14 CDT
 - analyst delivered stage 3 rev 3679206 (104-row matrix, 110 API checks, model oracle) 21:38:06 CDT
 - handoff coordinator -> builder, stage 3, start rev 3679206, 21:38:06 CDT
+- builder delivered stage 3 rev 959960c (self-reported: shipped 6/6 claimed stage 3, analyst API 388/388, UI 99/99) 21:52:44 CDT
+- handoff coordinator -> adversary and gate, stage 3, rev 959960c, 21:52:44 CDT
