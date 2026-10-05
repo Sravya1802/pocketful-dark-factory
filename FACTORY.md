@@ -37,6 +37,14 @@ referenced. The mandates are scanned against the vocabulary lists of every track
 - **Recovery ladder.** Three rejections per work item, then the coordinator splits it; three more on
   a split item and it is recorded as a blocker. A silent seat gets one resend.
 
+### Generic in practice
+
+The same five mandates built two unrelated products: the unscored `toy` track (a shared counter,
+4/4 stages, one real rework loop) and this pocketful wallet (4/4 stages, seven defects caught). Between
+the two runs only two generic rules changed (the gate waits for the adversary; flaky checks go back to
+their owner). Nothing in `mandates/` names either problem: every track-specific word lives in the
+dispatched task. To aim the factory at a different spec, change the dispatch, not the mandates.
+
 ## 3. Setup (stand it up yourself)
 
 1. Band Desktop 0.4.12+, a BAND account, Claude Code CLI 2.1.286+ (older CLIs crash seats at

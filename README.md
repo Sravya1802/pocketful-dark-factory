@@ -14,6 +14,8 @@ with **no network**
 
 The app above is exactly what the band built (`stage-4/`), shown with synthetic demo data.
 
+**Run report (one page, visual):** https://sravya1802.github.io/pocketful-dark-factory/ — every seat's work on a timeline, every REJECT and ACCEPT, every human message, stalls shown honestly.
+
 ## For judges (90 seconds)
 
 1. **What this is.** Five BAND Desktop seats built this wallet service from one dispatched task.
