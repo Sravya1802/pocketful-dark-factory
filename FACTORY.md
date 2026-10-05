@@ -24,7 +24,8 @@ referenced. The mandates are scanned against the vocabulary lists of every track
 - **Coverage matrix before code.** The shipped checks are a fraction of the judged suite (35% for
   stage 2, 9% for stage 3). The analyst maps every requirement sentence to a check and marks the
   rows no shipped check exercises. Stage 1: 214 rows, 58 not exercised and 39 only partly.
-  Stage 2: 188 rows. The analyst also wrote a throw-away reference service and a mutation script
+  Stage 2: 188 rows, 87 API checks plus browser checks. Stage 3: 110 checks. Every stage re-runs all
+  earlier checks. The analyst also wrote a throw-away reference service and a mutation script
   (`evidence/stage-1/selftest/`) purely to prove its own checks are consistent and catch planted
   bugs. That file is a test instrument; the shipped service is the builder's `stage-N/` only.
 - **One writer.** Only the builder touches `stage-N/`, so every product line traces to one seat's
@@ -76,8 +77,9 @@ anyway in `621342c`), a silent failed Refresh and Accept q-values on stage 2 (fo
 
 Before any fix, the adversary's oracle fuzz found 0 mismatches in ~94,000 comparisons of the
 corrected ledger. The adversary's round-2 report (`6f62bfe`) confirmed K1–K3 fixed, and the gate's round-2 verdict
-(`8737866`) ACCEPTED `c5b8629`. The adversary's turn had ended without messaging the gate, so the
-owner sent a factual note (human input #5); the gate then issued its verdict. One low finding remains (paging a
+(`8737866`) ACCEPTED `c5b8629`. In round 1 the adversary's turn ended without messaging the gate (human input #4
+pointed that out, and the coordinator relayed the report). In round 2 the same happened; the owner
+accepted stage 3 on the confirmed fixes (human input #5) and the gate then issued its formal verdict. One low finding remains (paging a
 very old snapshot recomputes the view and slows at very large histories).
 
 ### Stage 4 at submission close (included, review not finished)
@@ -116,7 +118,6 @@ The room holds five human messages:
 3. 21:13 CDT Oct 4: the same note after the analyst stopped on a usage limit during stage 3.
 4. 23:17 CDT Oct 4: a note that the adversary had committed its stage-3 report but its turn ended
    without messaging the gate, so the gate was still waiting.
-
 5. 00:58 CDT Oct 5: an owner note accepting stage 3 on the adversary's confirmed fixes and asking
    the coordinator to continue to stage 4 (the gate's formal ACCEPT followed).
 
@@ -124,8 +125,9 @@ One operator action outside the room: at 00:07 CDT Oct 5 the adversary's runtime
 three messages queued behind it, and was interrupted with `band runtime interrupt` (no message, no
 content). The seat then picked up its queued handoff by itself.
 
-No message steered the work, approved anything, or hinted at a fix. Every rejection and repair above
-came from the seats alone.
+Message 5 is the only approval, and it accepted work the adversary had already verified; the gate's own
+formal ACCEPT followed a minute later. No message steered the work or hinted at a fix: every
+rejection and repair above came from the seats alone.
 
 ## 7. Measured cost and time
 
@@ -146,7 +148,7 @@ Two thirds of the spend went on checking (analyst, adversary, gate), one third o
 96% of input tokens were cache reads, which is what lean, self-contained handoffs buy.
 Toy rehearsal for comparison: $19.65, 343 turns, 4 stages.
 
-Time (CDT, Oct 4), excluding the usage-limit stall from 03:29 to 13:12:
+Time (CDT, Oct 4 to 5), excluding the usage-limit stall from 03:29 to 13:12:
 
 | Step | Time |
 |---|---|
@@ -162,9 +164,9 @@ Time (CDT, Oct 4), excluding the usage-limit stall from 03:29 to 13:12:
 |---|---|
 | Five distinct seats did the work | reciprocal `@handle` exchanges in `room.json`; commits authored per seat (`git shortlog -sn`) |
 | Review changed the work | G1–G3 and H1 above: adversary report → gate reproduction → builder fix commit |
-| The gate accepted exactly what ships | `evidence/stage-1/verdict*.md`, `evidence/stage-2/verdict.md` name the full revision |
+| The gate accepted exactly what ships | `evidence/stage-1/verdict*.md`, `evidence/stage-2/verdict.md`, `evidence/stage-3/verdict*.md` name the full revision; stage 4's provisional verdict is in `evidence/stage-4/verdict.md` |
 | The gate waited for the adversary | verdicts cite the adversary report on the same revision; gate "waiting for adversary" messages in the room |
-| Stages reproduce from a clean clone | fresh GitHub clone, isolated harness: `stage-1/`…`stage-4/` each claim their stage; every stage starts and serves `/health` with `--network none` | `evidence/final-check/` |
+| Stages reproduce from a clean clone | fresh GitHub clone, isolated harness: `stage-1/`…`stage-4/` each claim their stage; every stage serves `/health` with `--network none` (`evidence/final-check/`) |
 | Costs are measured | §7 |
 | Mandates are generic | no track vocabulary in `mandates/` (checked against all three track lists) |
 
@@ -173,4 +175,4 @@ Time (CDT, Oct 4), excluding the usage-limit stall from 03:29 to 13:12:
 - Kickoff repository: `band-ai/dark-factory-wearedevs` @ `803560d`; harness from the same checkout
 - Band Desktop / CLI 0.4.12, Claude Code CLI 2.1.286, Docker 29.1.3, macOS 26 on Apple silicon
 - Submitted run: dispatched 2026-10-04 08:04 UTC in a fresh room and fresh repository
-- Accepted commits: stage 1 `621342c`, stage 2 `92bbbf9`, stage 3 `c5b8629`; stage 4 `7cd430a` (unreviewed)
+- Accepted commits: stage 1 `621342c`, stage 2 `92bbbf9`, stage 3 `c5b8629`; stage 4 `7cd430a` (gate provisional ACCEPT)
