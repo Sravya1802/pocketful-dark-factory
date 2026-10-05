@@ -85,8 +85,9 @@ very old snapshot recomputes the view and slows at very large histories).
 The analyst committed the stage-4 matrix and checks (`589e5f2`) and the builder committed refunds,
 correction batches and snapshots across import (`7cd430a`). An isolated harness run on a fresh clone at
 01:22 CDT reports stages 1–4 pass and `claimed stage: 4`. The coordinator handed it to the adversary
-and gate (`f89e4ea`), but their review had not finished when submissions closed, so stage 4 has no
-gate verdict. It is included at the owner's decision and should be read as unreviewed.
+and gate (`f89e4ea`). The gate's own checks all passed and it issued a PROVISIONAL ACCEPT (`f89a76e`,
+`evidence/stage-4/`), pending the adversary's report, which becomes final or turns into a REJECT when
+that report arrives. Read stage 4 as provisionally accepted.
 
 ## 5. What we tried that failed, and what we changed
 

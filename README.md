@@ -18,7 +18,7 @@ Track: **pocketful** · Team: Sravya Rachakonda (solo) · WeAreDevelopers x BAND
    | 1 | `stage-1/` | `621342c` | 3 (2 real rejections) | claims stage 1 |
    | 2 | `stage-2/` | `92bbbf9` | 1 | claims stage 2 |
    | 3 | `stage-3/` | `c5b8629` | 2 (1 real rejection) | claims stage 3 |
-   | 4 | `stage-4/` | `7cd430a` | 1 (review in progress at close) | claims stage 4 |
+   | 4 | `stage-4/` | `7cd430a` | 1 (gate: provisional ACCEPT, adversary report pending) | claims stage 4 |
 
    Stage 3: the gate rejected round 1 (K1–K3) and accepted round 2 (`8737866`). Stage 4 was built by the band and
    passes the harness, but the adversary and gate review was still running when submissions closed.
