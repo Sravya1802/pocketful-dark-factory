@@ -6,7 +6,7 @@
 const crypto = require('crypto');
 const { JNum, intValue, digestCanonical, DIGEST_PREFIX } = require('./json');
 const { isValidHash } = require('./passwords');
-const { now, nowUs, parseInstant } = require('./time');
+const { now, nowUs, parseInstant, formatUs } = require('./time');
 
 const HANDLE_RE = /^[a-z0-9_]{1,20}$/;
 const STATUSES = ['pending', 'paid', 'declined', 'cancelled'];
@@ -260,7 +260,7 @@ class State {
       authorizations.push({ id: a.id, from_user_id: a.fromId, to_user_id: a.toId, amount: a.amount,
         captured_amount: a.captured, note: a.note, visibility: a.visibility, status: a.status,
         expires_at: a.expiresAt, payment_ids: a.paymentIds.slice(), created_at: a.createdAt, seq: a.seq,
-        closed_at: a.closedAt, close_kind: a.closeKind });
+        closed_at: a.closedAt, close_kind: a.closeKind, released_at: a.closedUs === null ? null : formatUs(a.closedUs) });
     }
     const tokens = [];
     for (const [t, uid] of this.tokens) tokens.push({ token: t, user_id: uid });
@@ -409,22 +409,29 @@ function authorizationFrom(st, raw, exported, fallbackStamp) {
     expiresAt: expires.iso, expiresUs: expires.us, paymentIds, createdAt: created.iso, createdUs: created.us,
     seq: exported ? Number(int(a, 'seq', 'authorization', { min: 0n, max: SAFE })) : st.nextSeq(),
     closeKind: null, closedUs: null, closedAt: null };
-  // How a closed hold closed, for historical views. Stage-3 exports record it; for
-  // older exports and seeded closed holds it is reconstructed as far as the data allows.
+  // How a closed hold closed, for historical views. Stage-3 exports record it. A seeded
+  // closed hold has no recorded lifecycle and holds nothing in any view; holds closed
+  // in older exports are reconstructed as far as their data allows.
   if (status !== 'open') {
     const kind = exported && has(a, 'close_kind') ? str(a, 'close_kind', 'authorization', { nullable: true }) : null;
     const closed = exported && has(a, 'closed_at') && a.closed_at !== null
       ? parseStamp(str(a, 'closed_at', 'authorization')) : null;
     if (kind !== null && !['void', 'final', 'expired'].includes(kind)) throw new StateError('authorization ' + id + ': bad close_kind');
-    if (status === 'expired') {
+    const expiredByClock = status === 'expired' && auth.expiresUs <= nowUs();
+    const shown = expiredByClock ? { us: auth.expiresUs, iso: auth.expiresAt } : { us: auth.createdUs, iso: auth.createdAt };
+    const released = exported && has(a, 'released_at') && a.released_at !== null
+      ? parseStamp(str(a, 'released_at', 'authorization')) : null;
+    if (exported && kind !== null && closed) {
+      Object.assign(auth, { closeKind: kind, closedUs: (released || closed).us, closedAt: closed.iso });
+    } else if (exported && expiredByClock) {
       Object.assign(auth, { closeKind: 'expired', closedUs: auth.expiresUs, closedAt: auth.expiresAt });
-    } else if (closed) {
-      Object.assign(auth, { closeKind: status === 'voided' ? 'void' : 'final', closedUs: closed.us, closedAt: closed.iso });
+    } else if (exported && status === 'captured' && paymentIds.length) {
+      // Closed by its last capture.
+      const last = st.payments.get(paymentIds[paymentIds.length - 1]);
+      Object.assign(auth, { closeKind: 'final', closedUs: last.createdUs, closedAt: last.createdAt });
     } else {
-      // Not recorded: the closing capture's time when known, else the creation time.
-      const last = paymentIds.length ? st.payments.get(paymentIds[paymentIds.length - 1]) : null;
-      const at = last && status === 'captured' ? { us: last.createdUs, iso: last.createdAt } : { us: auth.createdUs, iso: auth.createdAt };
-      Object.assign(auth, { closeKind: status === 'voided' ? 'void' : 'final', closedUs: at.us, closedAt: at.iso });
+      // No lifecycle to go on: released when created, so it never holds anything.
+      Object.assign(auth, { closeKind: 'void', closedUs: auth.createdUs, closedAt: shown.iso });
     }
   }
   return auth;

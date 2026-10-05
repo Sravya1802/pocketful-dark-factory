@@ -99,8 +99,13 @@ PORT=8080 node server.js
   money movement between the same two wallets. Settlement members and captures are
   immutable (`422 linked_payment_immutable`).
 - Statements are built from an immutable per-user view (sorted entries with prefix sums,
-  cached until the user's ledger changes). A snapshot token records only the view and the
-  window in it, so tokens are small and share data; they live until reset or import.
+  cached until the user's ledger changes). A snapshot token records only the instant it
+  was read as (`known_at`, capped at the read start) and the window: revisions are
+  append-only and everything later is recorded after that instant, so paging recomputes
+  exactly the same result. Each snapshot costs a few hundred bytes; they live until reset
+  or import.
+- Seeded (and older-export) closed holds without a recorded lifecycle hold nothing in any
+  historical view.
 - Export/import carry revisions, opening balances and how each hold closed; stage-1 and
   stage-2 exports import with revision 1 per payment and openings derived from balances.
 

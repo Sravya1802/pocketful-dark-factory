@@ -53,7 +53,9 @@ function now() {
   return stamp(nowUs());
 }
 
-const INSTANT_RE = /^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]+))?(Z|([+-])([0-9]{2}):([0-9]{2}))$/;
+// RFC 3339 date-time: "T" and "Z" may be lower case, and the seconds field may be 60
+// (a leap second, taken as the first instant of the next minute).
+const INSTANT_RE = /^([0-9]{4})-([0-9]{2})-([0-9]{2})[Tt]([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]+))?([Zz]|([+-])([0-9]{2}):([0-9]{2}))$/;
 const DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
 function leap(y) {
@@ -75,9 +77,9 @@ function parseInstant(text) {
   const s = Number(m[6]);
   if (mo < 1 || mo > 12 || d < 1) return null;
   const dim = mo === 2 && leap(y) ? 29 : DAYS[mo - 1];
-  if (d > dim || h > 23 || mi > 59 || s > 59) return null;
+  if (d > dim || h > 23 || mi > 59 || s > 60) return null;
   let offMin = 0;
-  if (m[8] !== 'Z') {
+  if (m[8] !== 'Z' && m[8] !== 'z') {
     const oh = Number(m[10]);
     const om = Number(m[11]);
     if (oh > 23 || om > 59) return null;

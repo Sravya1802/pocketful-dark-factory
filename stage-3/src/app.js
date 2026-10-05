@@ -326,16 +326,16 @@ function statement(ctx) {
   const from = instantParam(q, 'from');
   const to = instantParam(q, 'to');
   const knownAt = instantParam(q, 'known_at');
-  const K = knownAt ? knownAt.us : ctx.now;
+  // Nothing is recorded after the read begins, so a later known_at selects the same
+  // revisions as the read start; freezing that instant keeps the snapshot exact.
+  const K = knownAt && knownAt.us < ctx.now ? knownAt.us : ctx.now;
   const toUs = to ? to.ceilUs : ctx.now; // half-open: effective strictly before `to`
   const fromUs = from ? from.ceilUs : null; // effective at or after `from`
   pageBounds(q); // validate limit and offset before freezing anything
-  // The view is immutable, so the snapshot only records where the window lies in it.
-  const view = ledger.userLedger(state, u, K);
-  const start = fromUs === null ? 0 : ledger.lowerBound(view.effs, fromUs);
-  // A window that ends before it starts is empty, with both balances taken at `from`.
-  const end = Math.max(start, ledger.lowerBound(view.effs, toUs));
-  const snap = { userId: u.id, view, start, end, knownAt: knownAt ? knownAt.text : null };
+  // A snapshot needs only the view's instant and the window: revisions are append-only
+  // and every later payment or revision is recorded after K, so the same K always
+  // selects exactly the same revisions, entries and balances.
+  const snap = { userId: u.id, K, fromUs, toUs, knownAt: knownAt ? knownAt.text : null };
   const token = state.newId('st3_', state.snapshots) + crypto.randomBytes(8).toString('hex');
   state.snapshots.set(token, snap);
   return { status: 200, body: statementPage(snap, token, q) };
@@ -349,7 +349,10 @@ function pageBounds(q) {
 
 function statementPage(snap, token, q) {
   const { limit, offset } = pageBounds(q);
-  const { view, start, end } = snap;
+  const view = ledger.userLedger(state, state.users.get(snap.userId), snap.K);
+  const start = snap.fromUs === null ? 0 : ledger.lowerBound(view.effs, snap.fromUs);
+  // A window that ends before it starts is empty, with both balances taken at `from`.
+  const end = Math.max(start, ledger.lowerBound(view.effs, snap.toUs));
   const count = BigInt(end - start);
   const first = offset >= count ? end : start + Number(offset);
   const last = offset + limit >= count ? end : start + Number(offset + limit);

@@ -44,6 +44,9 @@ function selected(p, K) {
 function userLedger(st, u, K) {
   const latest = K >= u.maxRecUs;
   if (latest && u.cache) return u.cache;
+  // A view for an earlier K never changes: later payments and revisions are recorded
+  // after K. The last one asked for is kept, so paging an old snapshot stays cheap.
+  if (!latest && u.kCache && u.kCache.K === K) return u.kCache.view;
   const items = [];
   for (const pid of u.paymentIds) {
     const p = st.payments.get(pid);
@@ -62,6 +65,7 @@ function userLedger(st, u, K) {
   for (let i = 0; i < items.length; i++) prefix[i + 1] = prefix[i] + items[i].d;
   const view = { items, effs, prefix, opening: u.opening };
   if (latest) u.cache = view;
+  else u.kCache = { K, view };
   return view;
 }
 
