@@ -135,14 +135,15 @@ a subscription, so this is an API-equivalent figure. Script: `factory/scripts/se
 
 | Seat | Model | Turns | Input tokens | of which cached | Output tokens | API-equiv $ | Share |
 |---|---|---|---|---|---|---|---|
-| builder | claude-opus-5-5 | 144 | 35,396,629 | 34,634,817 | 232,188 | $17.66 | 35% |
-| analyst | claude-sonnet-5-5 | 100 | 29,673,148 | 28,459,843 | 452,364 | $15.07 | 30% |
-| adversary | claude-sonnet-5-5 | 134 | 28,382,716 | 27,770,888 | 236,710 | $10.37 | 21% |
-| gate | claude-sonnet-5-5 | 102 | 14,721,883 | 14,296,837 | 54,662 | $5.11 | 10% |
-| coordinator | claude-sonnet-5-5 | 50 | 4,177,480 | 3,895,687 | 36,886 | $2.27 | 5% |
-| **total** | | 530 | 112,351,856 | 109,058,072 | 1,012,810 | **$50.48** | |
+| builder | claude-opus-5-5 | 206 | 67,873,876 | 64,678,124 | 321,980 | $44.94 | 36% |
+| adversary | claude-sonnet-5-5 | 233 | 84,576,310 | 81,509,139 | 438,204 | $32.95 | 27% |
+| analyst | claude-sonnet-5-5 | 147 | 60,589,256 | 57,910,452 | 598,836 | $28.29 | 23% |
+| gate | claude-sonnet-5-5 | 168 | 36,700,919 | 35,597,147 | 119,739 | $12.73 | 10% |
+| coordinator | claude-sonnet-5-5 | 80 | 9,083,194 | 8,430,896 | 67,104 | $4.97 | 4% |
+| **total, stages 1–4** | | 834 | 258,823,555 | 248,125,758 | 1,545,863 | **$123.87** | |
 
-97% of input tokens were cache reads, which is what lean, self-contained handoffs buy.
+Two thirds of the spend went on checking (analyst, adversary, gate), one third on building.
+96% of input tokens were cache reads, which is what lean, self-contained handoffs buy.
 Toy rehearsal for comparison: $19.65, 343 turns, 4 stages.
 
 Time (CDT, Oct 4), excluding the usage-limit stall from 03:29 to 13:12:
@@ -152,6 +153,8 @@ Time (CDT, Oct 4), excluding the usage-limit stall from 03:29 to 13:12:
 | Dispatch → stage 1 analysis committed | 03:04 → 03:26 (22 min) |
 | Stage 1 build → round 3 ACCEPT | 13:12 → 15:21 (2 h 9 min, 2 rejections) |
 | Stage 2 analysis → ACCEPT | 15:21 → 17:01 (1 h 40 min, 0 rejections) |
+| Stage 3 analysis → ACCEPT | 21:13 → 00:59 (1 rejection; includes ~1.5 h of stalls on a hung seat turn) |
+| Stage 4 analysis → build → gate provisional ACCEPT | 00:59 → 01:32 (33 min) |
 
 ## 8. Evidence map
 
