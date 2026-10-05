@@ -36,3 +36,5 @@ Run start: 2026-10-04 03:10 PDT-local (host TZ; see `date` below)
 - start 2026-10-04 17:02:00 CDT; stage-3/ created as copy of accepted stage-2/ (no .git inside)
 - handoff coordinator -> analyst, stage 3 requirements, rev e0caa79, 17:02:19 CDT
 - resend coordinator -> analyst stage 3 after usage-limit stop, 21:14:14 CDT
+- analyst delivered stage 3 rev 3679206 (104-row matrix, 110 API checks, model oracle) 21:38:06 CDT
+- handoff coordinator -> builder, stage 3, start rev 3679206, 21:38:06 CDT
