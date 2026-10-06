@@ -87,7 +87,8 @@ comparisons** of the corrected ledger. In stage 4 the oracle covered refunds and
 ## Where the evidence is
 
 - [`mandates/`](mandates/): the five generic seat mandates (no track vocabulary; scanned against every track)
-- [`room.json`](room.json): the BAND room download
+- [`room.json`](room.json): the BAND console download (latest 1,300 messages)
+- [`room-full.json`](room-full.json): the complete room, all 2,321 messages from the dispatch on, exported page by page with `band room messages --json`
 - [`evidence/stage-log.md`](evidence/stage-log.md): every handoff, verdict and rework loop, kept by the coordinator
 - `evidence/stage-N/`: coverage matrices (stage 1: 214 rows, 192 checks), attack reports and scripts, gate verdicts
 - [`evidence/final-check/`](evidence/final-check/): fresh-clone harness run and `--network none` start logs
