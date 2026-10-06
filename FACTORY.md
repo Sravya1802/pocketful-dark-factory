@@ -116,26 +116,44 @@ recorded them as non-blocking follow-ups, and issued its final ACCEPT (`eeea755`
 - **Claude usage limits stop seats and nothing wakes them.** All five seats share one subscription.
   See §6.
 
-## 6. Human input in the submitted run (disclosed)
+## 6. Human input, audited
 
-The room holds five human messages:
-1. The dispatch (the task, all four stages).
-2. 13:12 CDT Oct 4: a factual resume note. The builder had stopped on a Claude usage limit 25 minutes
-   after the dispatch; the limit reset, but nothing re-woke the seat. Wording: the seat stopped on a
-   usage limit, the limit has reset, continue, the task is unchanged.
-3. 21:13 CDT Oct 4: the same note after the analyst stopped on a usage limit during stage 3.
-4. 23:17 CDT Oct 4: a note that the adversary had committed its stage-3 report but its turn ended
-   without messaging the gate, so the gate was still waiting.
-5. 00:58 CDT Oct 5: an owner note accepting stage 3 on the adversary's confirmed fixes and asking
-   the coordinator to continue to stage 4 (the gate's formal ACCEPT followed).
+Every human word in the run is on the record, and none of it steered the work. Of **2,312 messages**
+in the room, **5 are human (0.2%)**. After the dispatch, the four notes total **220 words**, contain
+**no technical instruction**, and each one restarts a seat whose stop is visible in the room itself.
+
+| # | Time (CDT) | Trigger, visible in `room.json` | What the note said | Words | What the band did next |
+|---|---|---|---|---|---|
+| 1 | Oct 4 03:04 | none: the dispatch | the task, the four specs, the engineering stance | 737 | analyst committed the stage-1 matrix 22 min later |
+| 2 | Oct 4 13:12 | builder: "You've hit your session limit · resets 5:50am" | builder stopped on a usage limit; limit reset; continue; task unchanged | 53 | coordinator re-sent the same handoff; builder committed stage 1 18 min later |
+| 3 | Oct 4 21:14 | analyst: "You've hit your session limit · resets 6:10pm" | same note, for the analyst in stage 3 | 54 | coordinator re-sent the handoff; analyst committed in 23 min |
+| 4 | Oct 4 23:28 | adversary committed its report (`af638e1`) but never messaged the gate | that fact, and that the gate was waiting | 51 | coordinator relayed the report; gate REJECTED stage 3 (K1–K3) on its own evidence |
+| 5 | Oct 5 00:58 | same failure in round 2: report `6f62bfe` committed, gate not messaged | owner accepts stage 3 on the adversary's confirmed fixes; continue | 62 | gate issued its own formal ACCEPT one minute later; stage 4 began |
+
+The test we hold ourselves to: **remove any note and the code the band wrote does not change, only
+when it was written.** No note names a file, a function, a fix or a check. Every rejection and every
+repair in §4 came from the seats.
 
 One operator action outside the room: at 00:07 CDT Oct 5 the adversary's runtime turn was hung with
-three messages queued behind it, and was interrupted with `band runtime interrupt` (no message, no
-content). The seat then picked up its queued handoff by itself.
+three messages queued behind it and was interrupted with `band runtime interrupt` (no message, no
+content); the seat then picked up its queued handoff by itself.
 
-Message 5 is the only approval, and it accepted work the adversary had already verified; the gate's own
-formal ACCEPT followed a minute later. No message steered the work or hinted at a fix: every
-rejection and repair above came from the seats alone.
+### Each human input maps to a generic fix (the path to one message)
+
+| Notes | Root cause | Generic fix for the next run |
+|---|---|---|
+| 2, 3 | A seat stopped by a usage limit is never re-woken | API-key seats (no subscription limit), or a runtime watchdog that re-delivers the last handoff after the reset time printed in the seat's own error |
+| 4 | A seat ended its turn without its handoff message | coordinator mandate: when a verdict is overdue, look for a committed report in the repository and relay it |
+| 5 | Same, one round later | gate mandate: when waiting on a report, also look for it in the repository |
+
+None of these fixes names a track, so they belong in the mandates. With them, this run would have
+needed only the dispatch.
+
+### Working time versus stalls
+
+The four stages took about **9 hours of working time**. About **30 hours** were stalls, all external:
+Claude usage limits (9.5 h, 4 h) and the laptop sleeping (16.5 h). The run report shows every stall
+on the timeline instead of hiding it: https://sravya1802.github.io/pocketful-dark-factory/
 
 ## 7. Measured cost and time
 

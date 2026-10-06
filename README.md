@@ -94,10 +94,14 @@ comparisons** of the corrected ledger. In stage 4 the oracle covered refunds and
 - [`FACTORY.md`](FACTORY.md): seats, design, setup, measured cost, mistakes caught, lessons
 - [`factory/`](factory/): the dispatch message and the operator scripts used around the run
 
-## Honest limitations
+## Human input, audited
 
-- **Five human messages in the room**: the dispatch, three factual resume notes (Claude usage limits
-  stopped seats; a seat ended its turn without its handoff), and one owner note accepting stage 3.
-  None steered the work; every rejection and fix came from the seats. See FACTORY.md §6.
-- Two low findings are recorded as non-blocking follow-ups in the gate's verdicts (old-snapshot paging slows at very large histories; an import can carry an impossible future snapshot time).
-- `factory/scripts/load-demo-data.py` and the screenshots use synthetic data only: fictional users, no real money.
+Of 2,312 messages in the room, **5 are human (0.2%)**: the dispatch, three factual resume notes after
+a seat stopped (two Claude usage limits, one missed handoff), and one owner acceptance of stage 3 after
+the adversary had verified the fixes. The four notes after the dispatch total 220 words and contain no
+technical instruction; each trigger is visible in the room. FACTORY.md §6 lists every word, what
+triggered it, what the band did next, and the generic fix that removes it next time.
+
+- Two low findings are recorded as non-blocking follow-ups in the gate's verdicts (old-snapshot paging
+  slows at very large histories; an import can carry an impossible future snapshot time).
+- Screenshots and `factory/scripts/load-demo-data.py` use synthetic data only: fictional users, no real money.
